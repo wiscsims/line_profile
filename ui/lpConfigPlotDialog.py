@@ -1,0 +1,161 @@
+import os.path
+
+from qgis.PyQt.QtWidgets import QDialog, QColorDialog, QMessageBox
+from qgis.PyQt import uic
+
+FORM_CLASS, _ = uic.loadUiType(os.path.join(
+    os.path.dirname(__file__), 'lpConfigPlotDialog.ui'))
+
+
+class LPConfigPlotDialog(QDialog, FORM_CLASS):
+
+    def __init__(self, iface, model, index):
+        super(LPConfigPlotDialog, self).__init__(None)
+        self.iface = iface
+        self.setupUi(self)
+        self.model = model
+        self.index = index
+        self.data = {}
+        self.row = self.model.itemFromIndex(self.index).row()
+
+        print('self.row: ', self.row)
+
+        self.plotColor.clicked.connect(self.changePlotColor)
+
+        self.setParams()
+
+        self.CBX_Data.currentIndexChanged.connect(self.changeDataName)
+        self.CKB_MovAve.stateChanged.connect(self.changeMovAveState)
+        self.SPN_MovAveN.valueChanged.connect(self.changeMovAveN)
+        self.CKB_FullRes.stateChanged.connect(self.changeFullResState)
+        self.SPN_MaxDist.editingFinished.connect(self.changeMaxDist)
+        self.CKB_SamplingState.stateChanged.connect(
+            self.changeAreaSamplingState)
+        self.SPN_SamplingWidth.valueChanged.connect(
+            self.changeAreaSamplingWidth)
+        self.BTN_Remove.clicked.connect(self.removeData)
+        self.GRP_Main.clicked.connect(self.changeVisibleState)
+
+    def setBGColor(self, target, color):
+        target.setStyleSheet("background-color: %s" % color.name())
+
+    def changeVisibleState(self, state):
+        self.model.setCheckState(self.row, int(state) * 2)
+
+    def changePlotColor(self):
+        curColor = self.model.getColor(self.row)
+        newColor = QColorDialog().getColor(curColor)
+        if newColor.isValid() and newColor.name() is not curColor.name():
+            self.model.setColor(self.row, newColor)
+            self.setBGColor(self.plotColor, newColor)
+
+    def changeDataName(self, selectedText):
+        self.model.setDataName(self.row, selectedText)
+
+    def changeMovAveState(self, state):
+        self.model.setConfigs(self.row, {'movingAverage': state})
+
+    def changeMovAveN(self):
+        self.model.setConfigs(self.row,
+                              {'movingAverageN': self.SPN_MovAveN.value()})
+
+    def changeFullResState(self, state):
+        self.model.setConfigs(self.row, {'fullRes': state})
+
+    def changeAreaSamplingState(self, state):
+        self.model.setConfigs(self.row, {'areaSampling': state})
+
+    def changeAreaSamplingWidth(self):
+        self.model.setConfigs(
+            self.row, {'areaSamplingWidth': self.SPN_SamplingWidth.value()})
+
+    def changeMaxDist(self):
+        sameLayers = self.model.findSameLayers(self.model.getLayerId(self.row))
+        config = {'maxDistance': self.SPN_MaxDist.value()}
+        [self.model.setConfigs(r, config) for r in sameLayers]
+
+    def setParams(self):
+        r = self.row
+        # set layer name with layer type
+        layerName = self.model.getLayer(r)
+        self.layerName.setText(layerName)
+        self.layerType.setText(self.model.getLayerTypeName(r))
+        # set display state
+        self.GRP_Main.setChecked(self.model.getCheckState(r))
+
+        # set plot color
+        self.setBGColor(self.plotColor, self.model.getColor(r))
+
+        # set data name and list
+        self.setComboBoxItems(self.CBX_Data, self.model.getLayerId(r))
+
+        # set moving average
+        config = self.model.getConfigs(r)
+        self.CKB_MovAve.setCheckState(config['movingAverage'])
+        self.SPN_MovAveN.setValue(config['movingAverageN'])
+        # set full resolution
+        self.CKB_FullRes.setCheckState(config['fullRes'])
+
+        # set sampling area
+        self.CKB_SamplingState.setCheckState(config['areaSampling'])
+        self.SPN_SamplingWidth.setValue(config['areaSamplingWidth'])
+
+        # set max distance
+        self.SPN_MaxDist.setValue(config['maxDistance'])
+
+        # Vector vs. Raster
+        if self.model.getLayerType(r):  # Raster
+            self.GRP_Raster.setEnabled(True)
+            self.GRP_Vector.setEnabled(False)
+            self.CKB_MovAve.setEnabled(True)
+            self.SPN_MovAveN.setEnabled(True)
+            self.CKB_SamplingState.setEnabled(True)
+            self.SPN_SamplingWidth.setEnabled(True)
+            self.SPN_MaxDist.setEnabled(False)
+        else:  # Vector
+            self.GRP_Raster.setEnabled(False)
+            self.GRP_Vector.setEnabled(True)
+            self.CKB_MovAve.setEnabled(False)
+            self.SPN_MovAveN.setEnabled(False)
+            self.SPN_MaxDist.setEnabled(True)
+            self.CKB_SamplingState.setEnabled(False)
+            self.SPN_SamplingWidth.setEnabled(False)
+
+    def setComboBoxItems(self, cmbBox, layerId):
+        layers = self.iface.mapCanvas().layers()
+        if len(layers) == 0:
+            return
+        layer = [l for l in layers if l.id() == layerId][0]
+        currentData = self.model.getDataName(self.row)
+        if layer.type() == layer.RasterLayer:  # Raster Layer
+            [cmbBox.addItem('Band ' + str(i + 1))
+                for i in range(layer.bandCount())]
+        elif layer.type() == layer.VectorLayer:  # Vector Layer
+            fields = layer.dataProvider().fields()
+            myList = [f.name()
+                      for f in fields if f.type() == 2 or f.type() == 6]
+            cmbBox.addItems(myList)
+        else:
+            return False
+
+        return cmbBox.setCurrentIndex(cmbBox.findText(currentData))
+
+    def removeData(self):
+        msgBox = QMessageBox()
+        msgBox.setIcon(QMessageBox.Warning)
+        msgBox.setText("Are you sure to remove this data?")
+        msgBox.setWindowTitle("Remove Data")
+        buttons = QMessageBox.Ok | QMessageBox.Cancel
+        msgBox.setStandardButtons(buttons)
+        # res = QMessageBox.warning(self,
+        #                           title='Remove Data',
+        #                           text='',
+        #                           icon=QMessageBox.Critical,
+        #                           buttons=buttons)
+        returnValue = msgBox.exec()
+        if returnValue == QMessageBox.Ok:
+            self.model.removeRows(self.row, 1)
+            self.close()
+
+    def accept(self):
+        self.close()
