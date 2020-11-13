@@ -222,7 +222,7 @@ class DataProcessingTool():
             tmpD += pixelSize
 
         else:  # while-else
-            # run only one after exit from while block
+            # run only one time after exit from while block
             endPoint = pLines[len(pLines) - 1]['end']
             # qgsPoint = QgsPoint(tmpX, tmpY)
             equiPoints = self.getEquiPoints(

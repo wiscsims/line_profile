@@ -1,9 +1,7 @@
-from functools import reduce
-
 from qgis.PyQt.QtCore import Qt, pyqtSignal
 from qgis.PyQt.QtGui import QColor
 from qgis.core import QgsPointXY, QgsWkbTypes
-from qgis.gui import QgsMapTool, QgsRubberBand
+from qgis.gui import QgsMapTool, QgsRubberBand, QgsVertexMarker
 
 
 class ProfileLineTool(QgsMapTool):
@@ -11,18 +9,13 @@ class ProfileLineTool(QgsMapTool):
     doubleClicked = pyqtSignal()
     proflineterminated = pyqtSignal()
 
-    canvasClicked = pyqtSignal('QgsPointXY')
-    canvasClickedRight = pyqtSignal('QgsPointXY')
-    canvasDoubleClicked = pyqtSignal('QgsPointXY')
-    canvasMoved = pyqtSignal('QgsPointXY')
-
     def __init__(self, canvas):
         QgsMapTool.__init__(self, canvas)
         self.canvas = canvas
 
         self.scene = self.canvas.scene()
         self.terminated = True
-        self.profile_line_index = 1
+        self.profile_line_index = 0
         self.profile_lines = []
 
         self.profile_line_points = []
@@ -32,7 +25,7 @@ class ProfileLineTool(QgsMapTool):
          data structure of each profile line
          {
            'point': [QgsPointXY()-1], [QgsPointXY()-2], ...],
-           'rubberband': {
+           'markers': {
                 'line': rb_line,
                 'vertex': [rb_vertex1, rb_vertex2, ...],
                 'tieline': [rb_tieline1, rb_tieline2, ...],
@@ -42,21 +35,13 @@ class ProfileLineTool(QgsMapTool):
          }
         """
 
-        self.rbR = QgsRubberBand(canvas, True)  # False = not a polygon
-        self.rbR.setWidth(2)
-        self.rbR.setColor(QColor(255, 20, 20, 150))
-        self.rbR.setIcon(QgsRubberBand.ICON_CIRCLE)
-
-        self.tieLines = []
-        self.vertices = []
-        self.rasterPoint = []
-        self.samplingRange = []
-
         self.plColor = [QColor(255, 20, 20, 250),
                         QColor(20, 20, 255, 250),
                         QColor(20, 255, 20, 250)]
 
         self.flag_double_clicked = False
+
+        self.tracking_marker = None
 
         # print('INIT PROFILELINETOOL')
 
@@ -70,7 +55,7 @@ class ProfileLineTool(QgsMapTool):
 
         default_profile = {
             'point': [],
-            'rubberband': {
+            'markers': {
                 'line': rb_line,
                 'vertex': [],
                 'tieline': [],
@@ -87,9 +72,8 @@ class ProfileLineTool(QgsMapTool):
             self.profile.append(default_profile)
 
     def reset_all_profile(self):
-        n_profile = len(self.profile)
-        for i in range(n_profile):
-            self.reset_profile(i)
+        [self.reset_profile(idx) for idx in range(len(self.profile))]
+        self.hide_tracking_marker()
 
     def reset_profile(self, profile_index):
         # reset points
@@ -97,22 +81,22 @@ class ProfileLineTool(QgsMapTool):
 
         # reset rubberband
         #   - line
-        self.profile[profile_index]['rubberband']['line'].reset()
+        self.profile[profile_index]['markers']['line'].reset()
 
         try:
             #   - vertex
             # reset vertex rubberbands (delete from canvas)
             [vtx.reset() and self.scene.removeItem(vtx)
-             for vtx in self.profile[profile_index]['rubberband']['vertex']]
+             for vtx in self.profile[profile_index]['markers']['vertex']]
             # clear list of vertex rubberbands
-            self.profile[profile_index]['rubberband']['vertex'] = []
+            self.profile[profile_index]['markers']['vertex'] = []
 
             #   - tieline
             # reset tieline rubberbands (delete from canvas)
             [tie.reset() and self.scene.removeItem(tie)
-             for tie in self.profile[profile_index]['rubberband']['tieline']]
+             for tie in self.profile[profile_index]['markers']['tieline']]
             # clear list of tieline rubberbands
-            self.profile[profile_index]['rubberband']['tieline'] = []
+            self.profile[profile_index]['markers']['tieline'] = []
 
             self.reset_raster_sampling_points()
             self.reset_raster_sampling_area()
@@ -134,16 +118,17 @@ class ProfileLineTool(QgsMapTool):
     #         self.resetProfileLine()
     #     self.profile_lines[self.profile_line_index].addPoint(pt, True)
     #     # clear list
-    #     self.profile[profile_index]['rubberband']['tieline'] = []
+    #     self.profile[profile_index]['markers']['tieline'] = []
 
     def add_point(self, point, end_point=False, profile_index=None):
         if profile_index is None:
             profile_index = self.profile_line_index
+        print('profile index: ', profile_index)
 
         # add coordinates
         self.profile[profile_index]['point'].append(point)
 
-        rb = self.profile[profile_index]['rubberband']
+        rb = self.profile[profile_index]['markers']
 
         # add rubberband line
         # if not end_point:
@@ -164,52 +149,53 @@ class ProfileLineTool(QgsMapTool):
         self.terminated = True
         return
 
-    def initProfileLine(self, n_profile_line=2):
+    # def initProfileLine(self, n_profile_line=2):
+    #
+    #     for idx in range(n_profile_line):
+    #         # create new rubberband
+    #         rb = QgsRubberBand(self.canvas, True)  # False = not a polygon
+    #
+    #         # set rubberband properties
+    #         rb.setWidth(2)
+    #         rb.setIcon(QgsRubberBand.ICON_CIRCLE)
+    #         rb.setColor(self.plColor[idx])
+    #
+    #         # add rubberband to profile_lines
+    #         self.profile_lines.append(rb)
+    #
+    #         self.vertices.append([])
+    #         self.tieLines.append([])
+    #
+    #     # set current profile line to the first one (Profile Line 1)
+    #     self.update_current_profile_line(0)
 
-        for idx in range(n_profile_line):
-            # create new rubberband
-            rb = QgsRubberBand(self.canvas, True)  # False = not a polygon
-
-            # set rubberband properties
-            rb.setWidth(2)
-            rb.setIcon(QgsRubberBand.ICON_CIRCLE)
-            rb.setColor(self.plColor[idx])
-
-            # add rubberband to profile_lines
-            self.profile_lines.append(rb)
-
-            self.vertices.append([])
-            self.tieLines.append([])
-
-        # set current profile line to the first one (Profile Line 1)
-        self.changeProfileLine(0)
-
-    def getCurrentProfileLine(self):
+    def get_current_profile_line(self):
         return self.profile_line_index
 
-    def changeProfileLine(self, pIndex):
-        """change index of profile line"""
+    def update_current_profile_line(self, pIndex):
+        """update index of profile line"""
         self.profile_line_index = pIndex
 
     def canvasPressEvent(self, event):
         pass
 
-    def canvasMoveEvent_old(self, event):
-        if self.terminated is False and self.profile_line_index >= 0:
-            plen = self.profile_lines[self.profile_line_index].numberOfVertices(
-            )
-            if plen > 0:
-                pt = event.mapPoint()
-                self.profile_lines[self.profile_line_index].movePoint(
-                    plen - 1, pt)
+    # def canvasMoveEvent_old(self, event):
+    #     if self.terminated is False and self.profile_line_index >= 0:
+    #         plen = self.profile_lines[self.profile_line_index].numberOfVertices(
+    #         )
+    #         if plen > 0:
+    #             pt = event.mapPoint()
+    #             self.profile_lines[self.profile_line_index].movePoint(
+    #                 plen - 1, pt)
 
     def canvasMoveEvent(self, event):
-        if self.terminated is False:
-            rb_line = self.profile[self.profile_line_index]['rubberband']['line']
-            plen = rb_line.numberOfVertices()
-            if plen > 0:
-                pt = event.mapPoint()
-                rb_line.movePoint(plen - 1, pt)
+        if self.terminated:
+            return
+        rb_line = self.profile[self.profile_line_index]['markers']['line']
+        plen = rb_line.numberOfVertices()
+        if plen > 0:
+            pt = event.mapPoint()
+            rb_line.movePoint(plen - 1, pt)
         return
 
     def canvasReleaseEvent(self, event):
@@ -232,90 +218,22 @@ class ProfileLineTool(QgsMapTool):
 
         self.add_point(pt)
 
-    def canvasReleaseEvent_old(self, event):
-        pt = event.mapPoint()
-
-        if event.button() == Qt.RightButton:
-            if self.terminated is False:
-                self.terminated = True
-                self.addVertex(pt, True)
-                self.proflineterminated.emit()
-                return
-        if self.terminated is True:
-            self.resetProfileLine()
-        self.profile_lines[self.profile_line_index].addPoint(pt, True)
-        self.addVertex(pt)
-
     def canvasDoubleClickEvent(self, event):
         self.flag_double_clicked = True
         self.reset_profile(self.profile_line_index)
         self.terminate_profile()
         return
-        #
-        # pt = event.mapPoint()
-        # self.canvasDoubleClicked.emit(pt)
-        #
-        # self.resetProfileLine()
-        # self.doubleClicked.emit()
-        # self.emit(SIGNAL('doubleClicked'))
-
-    def updateProfileLine(self):
-        pass
-        return
-        # pt = self.getProfPoints()
-        # self.rb.reset()
-        # self.resetVertices()
-        # ptLast = pt.pop()
-        # for p in pt:
-        #     point = QgsPointXY(p[0], p[1])
-        #     self.rb.addPoint(point, True)
-        #     self.addVertex(point)
-        # point = QgsPointXY(ptLast[0], ptLast[1])
-        # self.rb.addPoint(point, True)
-        # self.addVertex(point, True)
-        # self.terminated = True
 
     def get_all_profile_points(self):
         pts = []
-        for p in self.profile:
-            pts.append([[pt.x(), pt.y()] for pt in p['point']])
+        for idx in range(len(self.profile)):
+            pts.append(self.get_profile_points(idx))
         return pts
 
-    def getAllProfPoints(self):
-        profVtx = []
-        if self.profile_line_index == -1:
-            return profVtx
-        for r in self.profile_lines:
-            vtx = []
-            n = r.numberOfVertices()
-            for i in range(n):
-                pt = r.getPoint(0, i)
-                vtx.append([pt.x(), pt.y()])
-            # if len(vtx):
-            profVtx.append(vtx)
-        return profVtx
-
-    def getProfPoints(self):
-        # [[x0, y0], [x1, y1], [x2, y2],. ., [xn, yn]]
-        profVertices = []
-        if self.profile_line_index == -1:
-            return profVertices
-
-        n = self.profile_lines[self.profile_line_index].numberOfVertices()
-        for i in range(n):
-            pt = self.profile_lines[self.profile_line_index].getPoint(0, i)
-            # check duplicated points
-            current_pt = [pt.x(), pt.y()]
-            if profVertices[-1] == current_pt:
-                continue
-            profVertices.append(current_pt)
-        return profVertices
-
-    def hideProfileLine(self):
-        self.profile_line_points = self.getAllProfPoints()
-        self.profile_line_points = self.get_all_profile_points()
-        self.reset_all_profile()
-        # self.resetProfileLine(True)
+    def get_profile_points(self, profile_index=None):
+        if profile_index is None:
+            profile_index = self.profile_line_index
+        return [[pt.x(), pt.y()] for pt in self.profile[profile_index]['point']]
 
     def hide_profile_line(self):
         # print('hide_profile_line')
@@ -338,117 +256,108 @@ class ProfileLineTool(QgsMapTool):
         self.profile_line_points = []
         self.profile_line_index = profile_line_index_original
 
-    def showProfileLine(self):
-        if len(self.profile_line_points) == 0:
-            return
-        i = 0
-        profile_line_index_original = self.profile_line_index
-        for points in self.profile_line_points:
-            self.profile_line_index = i
-            self.drawProfileLineFromPoints(points)
-            i += 1
-        self.profile_line_points = []
-        self.profile_line_index = profile_line_index_original
-
-    def resetProfileLine(self, all=False):
-        if all:
-            [myRb.reset() for myRb in self.profile_lines]
-        else:
-            self.profile_lines[self.profile_line_index].reset()
-        self.rbR.reset()
-        self.resetTieLines(all)
-        self.resetVertices(all)
-        self.resetRasterPoints()
-        self.resetSamplingRange()
-        self.terminated = False
-
-    def drawTieLine(self, pts):
-        self.resetTieLines(True)
+    def draw_tieline(self, pts):
         self.reset_tielines()
-        myColor = [QColor(255, 255, 100, 200), QColor(100, 255, 255, 200)]
+        myColor = [
+            QColor(255, 255, 100, 200),  # Profile Line 1
+            QColor(100, 255, 255, 200)  # Profile Line 2
+        ]
         for pIndex in range(len(pts)):
             color = myColor[pIndex]
             color.setAlpha(150)
-            self.tieLines.append([])
             for pt in pts[pIndex]:
                 tl = QgsRubberBand(self.canvas, True)
                 tl.setWidth(1)
                 tl.setColor(color)
-                tl.addPoint(QgsPointXY(pt[0][0], pt[0][1]), True)
-                tl.addPoint(QgsPointXY(pt[1][0], pt[1][1]), True)
-                self.profile[pIndex]['rubberband']['tieline'].append(tl)
+                tl.addPoint(QgsPointXY(*pt[0]), True)
+                tl.addPoint(QgsPointXY(*pt[1]), True)
+                self.profile[pIndex]['markers']['tieline'].append(tl)
 
-    def drawTieLine2(self, pt1, pt2):
-        tl = QgsRubberBand(self.canvas, True)
-        tl.setWidth(1)
-        tl.setColor(QColor(255, 255, 100, 200))
-        tl.addPoint(QgsPointXY(pt1[0], pt1[1]), True)
-        tl.addPoint(QgsPointXY(pt2[0], pt2[1]), True)
-        self.tieLines.append(tl)
+    def init_tracking_marker(self):
+        """create a trace marker on profile line"""
+        self.tracking_marker = QgsVertexMarker(self.canvas)
+        self.tracking_marker.setIconSize(10)
+        self.tracking_marker.setPenWidth(3)
+        self.tracking_marker.setIconType(QgsVertexMarker.ICON_CIRCLE)
+        self.tracking_marker.setFillColor(QColor(0, 255, 0, 200))  # white
+        self.tracking_marker.setColor(QColor(255, 255, 255, 200))  # white
+        self.tracking_marker.setCenter(QgsPointXY(0, 0))
+        self.tracking_marker.hide()
 
-    def resetTieLines(self, all=False):
-        if self.profile_line_index < 0 or reduce(lambda x, y: x + len(y), self.tieLines, 0) == 0:
-            return
-        if all:
-            for pIndex in range(len(self.tieLines)):
-                [tl.reset() for tl in self.tieLines[pIndex]]
-                [self.canvas.scene().removeItem(tl)
-                 for tl in self.tieLines[pIndex]]
-            self.tieLines = []
-        else:
-            [tl.reset() for tl in self.tieLines[self.profile_line_index]]
-            [self.canvas.scene().removeItem(tl)
-             for tl in self.tieLines[self.profile_line_index]]
+    def show_tracking_marker(self):
+        if self.tracking_marker:
+            self.tracking_marker.show()
 
-    def addVertex2(self, pt1):
-        tl = QgsRubberBand(self.canvas, QgsWkbTypes.PointGeometry)
-        tl.setIconSize(5)
-        tl.setIcon(QgsRubberBand.ICON_CIRCLE)
-        tl.setColor(QColor(255, 255, 255, 200))
-        tl.addPoint(QgsPointXY(pt1[0], pt1[1]), True)
-        self.rasterPoint.append(tl)
+    def hide_tracking_marker(self):
+        if self.tracking_marker:
+            self.tracking_marker.hide()
 
-    def addSamplingRange(self, pt1, terminator=False):
-        if terminator:
-            icon = QgsRubberBand.ICON_FULL_BOX
-        else:
-            icon = QgsRubberBand.ICON_CIRCLE
-        tl = QgsRubberBand(self.canvas, QgsWkbTypes.PointGeometry)
-        tl.setIconSize(3)
-        # tl.setWidth(5)
-        tl.setIcon(icon)
-        tl.setColor(QColor(255, 255, 220, 200))
-        tl.addPoint(QgsPointXY(pt1[0], pt1[1]), True)
-        self.samplingRange.append(tl)
+    def update_tracking_marker(self, pt):
+        # self.trace_marker.movePoint(QgsPointXY(*pt))
+        self.tracking_marker.setCenter(QgsPointXY(*pt))
 
-    def addSamplingArea(self, pts, color):
+    def reset_tracking_marker(self):
+        if self.tracking_marker:
+            # self.tracking_marker.reset()
+            self.scene.removeItem(self.tracking_marker)
+            self.tracking_marker = None
+
+    def add_sampling_area(self, pts, color):
         myColor = QColor(color)
         myColor.setAlpha(35)
         for pt in pts:
             rb = QgsRubberBand(self.canvas, QgsWkbTypes.PolygonGeometry)
-            rb.addPoint(QgsPointXY(pt[0][0], pt[0][1]))
-            rb.addPoint(QgsPointXY(pt[1][0], pt[1][1]))
-            rb.addPoint(QgsPointXY(pt[3][0], pt[3][1]))
-            rb.addPoint(QgsPointXY(pt[2][0], pt[2][1]))
-            rb.addPoint(QgsPointXY(pt[0][0], pt[0][1]))
+            rb.addPoint(QgsPointXY(*pt[0]))
+            rb.addPoint(QgsPointXY(*pt[1]))
+            rb.addPoint(QgsPointXY(*pt[3]))
+            rb.addPoint(QgsPointXY(*pt[2]))
+            rb.addPoint(QgsPointXY(*pt[0]))
             rb.setColor(myColor)
             rb.setWidth(2)
-            self.profile[self.profile_line_index]['rubberband']['raster_sampling_area'].append(
+            self.profile[self.profile_line_index]['markers']['raster_sampling_area'].append(
                 rb)
 
-    def addSamplingRange2(self, pts, color):
+    def add_sampling_points_old(self, pts, color):
         myColor = QColor(color)
         myColor.setAlpha(200)
         mySize = 3
-        for pt1 in pts:
-            qpt = QgsPointXY(pt1[0], pt1[1])
-            tl2 = QgsRubberBand(self.canvas, QgsWkbTypes.PointGeometry)
-            tl2.addPoint(qpt, True)
-            tl2.setIconSize(mySize)
-            tl2.setIcon(QgsRubberBand.ICON_CIRCLE)
-            tl2.setColor(myColor)
-            self.profile[self.profile_line_index]['rubberband']['raster_sampling_point'].append(
-                tl2)
+        for pt in pts:
+            qpt = QgsPointXY(*pt)
+            rb = QgsRubberBand(self.canvas, QgsWkbTypes.PointGeometry)
+            rb.addPoint(qpt, True)
+            rb.setIconSize(mySize)
+            rb.setIcon(QgsRubberBand.ICON_CIRCLE)
+            rb.setColor(myColor)
+            self.profile[self.profile_line_index]['markers']['raster_sampling_point'].append(
+                rb)
+
+    def get_base_sampling_point_vertex_marker(self, color=None, pt=None):
+        """return vertex for sampling point; color and position are option
+        color [option]: QColor object
+        pt [option]: QgsPointXY
+        """
+
+        my_size = 3
+        my_icon_type = QgsVertexMarker.ICON_CIRCLE
+        qvm = QgsVertexMarker(self.canvas)
+        qvm.setIconType(my_icon_type)
+        qvm.setIconSize(my_size)
+        if color:
+            qvm.setFillColor(color)
+            qvm.setColor(color)
+        if pt:
+            qvm.setCenter(pt)
+
+        return qvm
+
+    def add_sampling_points(self, pts, color):
+        my_color = QColor(color)
+        my_color.setAlpha(200)
+        for pt in pts:
+            qpt = QgsPointXY(*pt)
+            vm = self.get_base_sampling_point_vertex_marker(my_color, qpt)
+            self.profile[self.profile_line_index]['markers']['raster_sampling_point'].append(
+                vm)
 
     def get_vertex_rb(self, profile_index, point, end_point=False):
         """return vertex rubberband with given params"""
@@ -462,90 +371,37 @@ class ProfileLineTool(QgsMapTool):
 
         return vtx
 
-    def addVertex(self, pt1, terminator=False):
-        if terminator:
-            icon = QgsRubberBand.ICON_FULL_BOX
-        else:
-            icon = QgsRubberBand.ICON_CIRCLE
-        rb_profileline = QgsRubberBand(self.canvas, QgsWkbTypes.PointGeometry)
-        rb_profileline.setIconSize(10)
-        rb_profileline.setIcon(icon)
-        rb_profileline.setColor(self.plColor[self.profile_line_index])
-        rb_profileline.addPoint(QgsPointXY(pt1[0], pt1[1]), True)
-
-        self.vertices[self.profile_line_index].append(rb_profileline)
-
     def draw_profileLine_from_points(self, points):
-        points = [QgsPointXY(*p) for p in points]
-        [self.add_point(p) for p in points[:-1]]
-        self.terminate_profile(points[-1])
+        self.reset_profile(self.profile_line_index)
 
-    def drawProfileLineFromPoints(self, points):
-        # points = points[self.profile_line_index]
-        self.resetProfileLine()
-        num = len(points)
-
-        if not num:
-            # no profileline
-            # print('no profile line')
+        if len(points) == 0:
             return
 
-        points = [QgsPointXY(p[0], p[1]) for p in points]
-        i = 0
-        # print('self.profile_line_index: ', self.profile_line_index)
-        # print('i: ', i)
-        for i in range(num - 1):
-            self.profile_lines[self.profile_line_index].addPoint(
-                points[i], True)
-            self.addVertex(points[i])
-        self.terminated = True
-        self.profile_lines[self.profile_line_index].addPoint(
-            points[i + 1], True)
-        self.addVertex(points[i + 1], True)
-
-    def resetVertices(self, full=False):
-        if full:
-            for vtx in self.vertices:
-                [v.reset() for v in vtx]
-            for vtx in self.vertices:
-                [self.canvas.scene().removeItem(v) for v in vtx]
-            self.vertices = []
-        else:
-            try:
-                [tl.reset() for tl in self.vertices[self.profile_line_index]]
-                [self.canvas.scene().removeItem(tl)
-                 for tl in self.vertices[self.profile_line_index]]
-            except Exception:
-                pass
+        points = [QgsPointXY(*p) for p in points]
+        # add points except last point
+        [self.add_point(p) for p in points[:-1]]
+        # add last point
+        self.terminate_profile(points[-1])
 
     def reset_raster_sampling_points(self, profile_index=None):
         if profile_index is None:
             profile_index = self.profile_line_index
         #   - raster sampling area (rectangle) and sampling point
-        [pt.reset() and self.scene.removeItem(pt)
-         for pt in self.profile[profile_index]['rubberband']['raster_sampling_point']]
-        self.profile[profile_index]['rubberband']['raster_sampling_point'] = []
+        print('reset sample points: ', profile_index)
+        [self.scene.removeItem(
+            pt) for pt in self.profile[profile_index]['markers']['raster_sampling_point']]
+        self.profile[profile_index]['markers']['raster_sampling_point'] = []
 
     def reset_raster_sampling_area(self, profile_index=None):
         if profile_index is None:
             profile_index = self.profile_line_index
         [rect.reset() and self.scene.removeItem(rect)
-         for rect in self.profile[profile_index]['rubberband']['raster_sampling_area']]
-        self.profile[profile_index]['rubberband']['raster_sampling_area'] = []
+         for rect in self.profile[profile_index]['markers']['raster_sampling_area']]
+        self.profile[profile_index]['markers']['raster_sampling_area'] = []
 
     def reset_tielines(self, profile_index=None):
         if profile_index is None:
             profile_index = self.profile_line_index
         [tie.reset() and self.scene.removeItem(tie)
-         for tie in self.profile[profile_index]['rubberband']['tieline']]
-        self.profile[profile_index]['rubberband']['tieline'] = []
-
-    def resetRasterPoints(self):
-        [tl.reset() for tl in self.rasterPoint]
-        [self.canvas.scene().removeItem(tl) for tl in self.rasterPoint]
-        self.rasterPoint = []
-
-    def resetSamplingRange(self):
-        [tl.reset() for tl in self.samplingRange]
-        [self.canvas.scene().removeItem(tl) for tl in self.samplingRange]
-        self.samplingRange = []
+         for tie in self.profile[profile_index]['markers']['tieline']]
+        self.profile[profile_index]['markers']['tieline'] = []

@@ -34,7 +34,6 @@ from qgis.PyQt.QtCore import (
     QVariant,
     QTimer,
 )
-
 from qgis.PyQt.QtWidgets import (
     QAction,
     QFileDialog,
@@ -113,9 +112,6 @@ class LineProfile:
         self.dockOpened = False
         self.canvas = self.iface.mapCanvas()
         self.originalMapTool = self.canvas.mapTool()
-        # self.mapTool = None
-        # self.plotTool = None
-        # self.dpTool = None
 
         self.closingFlag = False
         self.debugFlag = False
@@ -125,8 +121,8 @@ class LineProfile:
         self.timer = QTimer()
         self.timer2 = QTimer()
 
-        self.spin_box_timer = QTimer()
-        self.spin_box_timer.setSingleShot(True)
+        self.timer_pixel_size_spin_box = QTimer()
+        self.timer_pixel_size_spin_box.setSingleShot(True)
 
         self.pLines = []
 
@@ -266,15 +262,15 @@ class LineProfile:
         # clear objects on the canvas
         # rubberbands
         try:
-            self.profileLineTool.resetProfileLine(all=True)
+            # self.profileLineTool.resetProfileLine(all=True)
+            self.profileLineTool.reset_all_profile()
         except AttributeError:
             print(str(AttributeError))
 
         for action in self.actions:
-            self.iface.removePluginMenu(
-                self.tr(u'&LineProfile'),
-                action)
+            self.iface.removePluginMenu(self.tr(u'&LineProfile'), action)
             self.iface.removeToolBarIcon(action)
+
         # remove the toolbar
         del self.toolbar
 
@@ -311,7 +307,7 @@ class LineProfile:
         self.profileLineTool.show_profile_line()
 
     def refreshProfileLines(self):
-        self.profileLineTool.showProfileLine()
+        self.profileLineTool.show_profile_line()
 
     def adjustTableColumnWidth(self):
         self.timer.stop()
@@ -333,18 +329,6 @@ class LineProfile:
 
         # create connection between changing maptool event and actoin (mapToolChanged)
         self.canvas.mapToolSet.connect(self.mapToolChanged)
-
-    def canvasClicked(self, pt):
-        pass
-
-    def canvasDoubleClicked(self, pt):
-        pass
-
-    def canvasClickedRight(self, pt):
-        pass
-
-    def canvasMoved(self, pt):
-        pass
 
     def mapToolChanged(self, current_maptool, old_maptool):
         # print('mapToolChanged')
@@ -415,6 +399,8 @@ class LineProfile:
             self.openImportProfileLineDialog)
         self.dock.Btn_ExportPlot.clicked.connect(self.exportPlot)
         self.dock.ChkBox_TieLine.stateChanged.connect(self.updatePlot)
+        self.dock.ChkBox_Tracer.stateChanged.connect(
+            self.handle_toggle_tracking_marker)
         self.dock.ChkBox_ShowSamplingPoints.stateChanged.connect(
             self.updatePlot)
         self.dock.ChkBox_ShowSamplingAreas.stateChanged.connect(
@@ -437,11 +423,10 @@ class LineProfile:
         self.timer.timeout.connect(self.adjustTableColumnWidth)
         self.timer2.timeout.connect(self.windowResizeEventTimeOut)
 
-        self.spin_box_timer.timeout.connect(self.updatePlot)
+        self.timer_pixel_size_spin_box.timeout.connect(self.updatePlot)
 
     def disconnectDock(self):
         try:
-
             self.dock.myExportProfileLineBtn.clicked.disconnect(
                 self.openExportProfileLineDialog)
             self.dock.Btn_ImportProfileLine.clicked.disconnect(
@@ -476,12 +461,6 @@ class LineProfile:
         self.configPlotDialog = LPConfigPlotDialog(
             self.iface, self.model, index)
         self.configPlotDialog.show()
-
-    # def updatePlot(self):
-    #     print('update plot')
-    #
-    # def resetPlot(self):
-    #     print('reset plot')
 
     def refreshModel(self):
         tree_root = QgsProject.instance().layerTreeRoot()
@@ -562,7 +541,7 @@ class LineProfile:
             return
 
         self.dpTool.pixel_size = pixel_size
-        self.spin_box_timer.start(1000)
+        self.timer_pixel_size_spin_box.start(1000)
         # print('pixel size: ', self.dpTool.pixel_size)
 
     def updatePlot(self):
@@ -570,12 +549,14 @@ class LineProfile:
         if not self.model.updateFlag:
             return
         if self.canvas.layerCount() == 0 or self.model.rowCount() == 0:
-            self.profileLineTool.resetProfileLine()
+            self.profileLineTool.reset_all_profile()
+            # self.profileLineTool.resetProfileLine()
             self.plotTool.resetPlot(1)
             return
+
         profPoints = self.profileLineTool.get_all_profile_points()
 
-        self.pLines = []
+        # self.pLines = []
         if not self.is_profileline_available(profPoints):
             # reset plot
             self.plotTool.resetPlot(clearAll=True)
@@ -593,7 +574,7 @@ class LineProfile:
         # self.profLineTool.resetTieLies()
 
         # reset sampling ranges
-        self.profileLineTool.resetSamplingRange()
+        # self.profileLineTool.resetSamplingRange()
 
         # initialize sampling points on raster layer for debugging
         self.dpTool.initSamplingPoints()
@@ -628,7 +609,6 @@ class LineProfile:
                     myData = self.dpTool.getRasterProfile(pp, layer, field, config['fullRes'], int(
                         config['areaSampling']) * config['areaSamplingWidth'])
                     # draw raster sampling area and pionts
-                    self.handle_raster_sampling_details(config, color_org)
 
                 data.append({'data': myData,
                              'label': label,
@@ -636,39 +616,40 @@ class LineProfile:
                              'layer': layer,
                              'layer_type': layer_type,
                              'color_org': color_org})
+            self.handle_raster_sampling_details(pIndex, config, color_org)
             self.plotData.append(data)
 
         # draw tie lines
         if self.dock.ChkBox_TieLine.isChecked():
-            self.profileLineTool.drawTieLine(self.dpTool.getTieLines())
+            self.profileLineTool.draw_tieline(self.dpTool.getTieLines())
 
         # draw sampling points on raster layer for debugging
-        if self.debugFlag is True:
-            for pt in self.dpTool.getSamplingPoints():
-                self.profileLineTool.addVertex2(pt)
+        # if self.debugFlag is True:
+        #     for pt in self.dpTool.getSamplingPoints():
+        #         self.profileLineTool.addVertex5(pt)
 
-        self.profileLineTool.updateProfileLine()
+        # self.profileLineTool.updateProfileLine()
 
         # draw line profile
         self.plotTool.drawPlot3(self.pLines, self.plotData,
                                 pLineNormalize=self.dock.ChkBox_pLineNormalize.isChecked())
 
-    def handle_raster_sampling_details(self, config, color_org):
+    def handle_raster_sampling_details(self, p_index, config, color_org):
         """draw raster sampling area and points"""
 
-        self.profileLineTool.reset_raster_sampling_area()
-        self.profileLineTool.reset_raster_sampling_points()
+        self.profileLineTool.reset_raster_sampling_area(p_index)
+        self.profileLineTool.reset_raster_sampling_points(p_index)
 
         if config['areaSampling']:
             # add sampling area
             if self.dock.ChkBox_ShowSamplingAreas.isChecked():
-                self.profileLineTool.addSamplingArea(
+                self.profileLineTool.add_sampling_area(
                     self.dpTool.getSamplingArea(), color_org)
 
             # add sampling points
             if self.dock.ChkBox_ShowSamplingPoints.isChecked():
                 for pt in self.dpTool.getSamplingRange():
-                    self.profileLineTool.addSamplingRange2(pt, color_org)
+                    self.profileLineTool.add_sampling_points(pt, color_org)
 
     def resetPlot(self):
         resetAllFlag = False
@@ -680,13 +661,16 @@ class LineProfile:
     def openExportProfileLineDialog(self):
         self.expPLDialog = LPExportDialog()
         self.expPLDialog.show()
-        if self.expPLDialog.exec_():
-            if self.expPLDialog.Grp_SaveShapeFileAs.isChecked():
-                shapeFilePath = self.sanitizePath(
-                    self.expPLDialog.shapeFileName)
-                self.exportProfileLineAsShapeFile(shapeFilePath)
-            if self.expPLDialog.Grp_AddField.isChecked():
-                self.addDistanceToAttribute()
+        res = self.expPLDialog.exec_()
+        if not res:
+            return
+
+        if self.expPLDialog.Grp_SaveShapeFileAs.isChecked():
+            shapeFilePath = self.sanitizePath(
+                self.expPLDialog.shapeFileName)
+            self.exportProfileLineAsShapeFile(shapeFilePath)
+        if self.expPLDialog.Grp_AddField.isChecked():
+            self.addDistanceToAttribute()
 
     def exportProfileLineAsShapeFile(self, shapeFilePath):
         fields = []
@@ -697,7 +681,9 @@ class LineProfile:
 
         profileLineLayer.startEditing()
         dataProvider = profileLineLayer.dataProvider()
-        points = self.profileLineTool.getProfPoints()
+
+        # get point of current profile line
+        points = self.profileLineTool.get_profile_points()
 
         # add fields
         for i in range(len(points)):
@@ -705,12 +691,10 @@ class LineProfile:
         fields.append(QgsField('Max Dist.', QVariant.Double))
         dataProvider.addAttributes(fields)
 
-        # get profile line features
+        # get rofile line features
         for pt in points:
-            polyline.append(QgsPoint(pt[0], pt[1]))
-            attr.append('{0}, {1}'.format(pt[0], pt[1]))
-            # attr.append(pt[1])
-        # attr.append(self.dock.SpnBox_DistanceLimit.value())
+            polyline.append(QgsPoint(*pt))
+            attr.append('{0}, {1}'.format(*pt))
 
         # add a feature
         feture = QgsFeature()
@@ -735,20 +719,28 @@ class LineProfile:
         else:
             pass
 
+    def is_layer_available(self, layer, model, r):
+        if not layer:
+            return False
+        if not layer.RasterLayer:
+            return False
+        if not model.getCheckState(r):
+            return False
+        return True
+
     def addDistanceToAttribute(self):
-        # pass
-        # layer1 = self.getLayerById(self.dock.currentPLayer)
-        # field1 = self.dock.myFields.currentText()
 
         newFieldName = self.expPLDialog.TBox_FieldName.text()
 
         for r in range(self.model.rowCount()):
             layer = self.getLayerById(self.model.getLayerId(r))
+
+            if not self.is_layer_available(layer, self.model, r):
+                continue
+
             field = self.model.getDataName(r)
             config = self.model.getConfigs(r)
             pIndex = self.getProfileIndex()
-            if not layer or not self.model.getCheckState(r) or layer.type() == layer.RasterLayer:
-                continue
             dataProvider = layer.dataProvider()
             dataProvider.addAttributes(
                 [QgsField(newFieldName, QVariant.Double)])
@@ -763,26 +755,29 @@ class LineProfile:
     def openImportProfileLineDialog(self):
         self.impPLDialog = LPImportDialog(self.iface)
         self.impPLDialog.show()
-        if self.impPLDialog.exec_():
-            if self.impPLDialog.RadBtn_FileSelect.isChecked():
-                shapeFilePath = self.sanitizePath(
-                    self.impPLDialog.TBox_ShapeFilePath.text())
-                shapeFileName = os.path.basename(
-                    shapeFilePath.split(os.extsep)[0])
-                layer = self.iface.addVectorLayer(
-                    shapeFilePath, shapeFileName, 'ogr')
-            else:
-                layerId = self.impPLDialog.CmbBox_LayerSelect.itemData(
-                    self.impPLDialog.CmbBox_LayerSelect.currentIndex())
-                layer = self.getLayerById(layerId)
-            self.importProfileLine(layer)
+
+        if not self.impPLDialog.exec_():
+            return
+
+        if self.impPLDialog.RadBtn_FileSelect.isChecked():
+            shapeFilePath = self.sanitizePath(
+                self.impPLDialog.TBox_ShapeFilePath.text())
+            shapeFileName = os.path.basename(shapeFilePath.split(os.extsep)[1])
+            layer = self.iface.addVectorLayer(
+                shapeFilePath, shapeFileName, 'ogr')
+        else:
+            layerId = self.impPLDialog.CmbBox_LayerSelect.itemData(
+                self.impPLDialog.CmbBox_LayerSelect.currentIndex())
+            layer = self.getLayerById(layerId)
+        self.importProfileLine(layer)
 
     def importProfileLine(self, layer):
+
         dp = layer.dataProvider()
         for f in dp.getFeatures():
             points = f.geometry().asMultiPolyline()
-
-        self.profileLineTool.drawProfileLineFromPoints(points)
+        points = [[pt.x(), pt.y()] for pt in points[0]]
+        self.profileLineTool.draw_profileLine_from_points(points)
         self.updatePlot()
 
     def init_profile_line(self):
@@ -793,7 +788,7 @@ class LineProfile:
                 'Profile Line {}'.format(i + 1), i)
         self.dock.CmbBox_ProfileLine.setCurrentIndex(0)
 
-        self.profileLineTool.initProfileLine(n)
+        # self.profileLineTool.initProfileLine(n)
         self.profileLineTool.init_profile(n)
 
     def clear_profile_line(self):
@@ -806,7 +801,7 @@ class LineProfile:
         pass
 
     def changeCurrentProfileLine(self, pIndex):
-        self.profileLineTool.changeProfileLine(pIndex)
+        self.profileLineTool.update_current_profile_line(pIndex)
 
     def getProfileIndex(self):
         return self.dock.CmbBox_ProfileLine.currentIndex()
@@ -821,10 +816,55 @@ class LineProfile:
             or event.ydata is None \
             or len(self.pLines) < pIndex \
             or len(normFactor) <= pIndex
+
+        # res5 = not (self.dock.ChkBox_Tracer.isChecked
+        #             and event.xdata
+        #             and event.ydata
+        #             and len(self.pLines) >= pIndex
+        #             and len(normFactor) > pIndex)
+        # print('tracer check:', res, ' - ', res5)
         return res
 
+    def handle_toggle_tracking_marker(self, state):
+        if state:
+            self.profileLineTool.init_tracking_marker()
+        else:
+            self.profileLineTool.reset_tracking_marker()
+
+    def is_trace_marker_available(self, event):
+        if not self.dock.ChkBox_Tracer.isChecked():
+            return False
+
+        if not (event.xdata and event.ydata):
+            return False
+
+        if len(self.profileLineTool.profile[self.profileLineTool.profile_line_index]['point']) == 0:
+            return False
+
+        return True
+
+    def draw_trace_marker(self, event, normFactor):
+        # self.profileLineTool.reset_tracing_marker()
+        if self.is_trace_marker_available(event):
+            p_index = self.profileLineTool.profile_line_index
+            # show marker
+            self.profileLineTool.show_tracking_marker()
+
+            # move marker to the position
+            x = event.xdata / normFactor[p_index]
+            if x > self.dpTool.sumD(self.pLines[p_index]):
+                return
+            pt = self.dpTool.getCurrentCoordinates(self.pLines[p_index], x)
+            self.profileLineTool.update_tracking_marker(pt)
+        else:
+            # hide marker
+            self.profileLineTool.hide_tracking_marker()
+
     def drawTracer(self, event, normFactor):
-        self.profileLineTool.resetRasterPoints()
+        self.draw_trace_marker(event, normFactor)
+        return
+        # self.profileLineTool.resetRasterPoints()
+        self.profileLineTool.reset_tracing_marker()
         pIndex = self.dock.CmbBox_ProfileLine.currentIndex()
         if self.check_tracer_condition(event, pIndex, normFactor):
             return
@@ -835,7 +875,7 @@ class LineProfile:
             return
 
         pt = self.dpTool.getCurrentCoordinates(self.pLines[pIndex], x)
-        self.profileLineTool.addVertex2(pt)
+        self.profileLineTool.add_tracing_marker(pt)
 
     def exportProfileData(self):
         fileName, _ = QFileDialog.getSaveFileName(self.iface.mainWindow(),
@@ -862,6 +902,7 @@ class LineProfile:
                                                                      d['configs']['movingAverageN'])
                 curL = len(d['data'][0])
                 myL = curL if curL >= myL else myL
+
             for d in data:
                 label = d['layer'].name() + '_' + d['label']
                 # transpose data rows and columns
@@ -872,6 +913,7 @@ class LineProfile:
                     a.append(['', ''])
                 a.insert(0, ['distance (micron)', label])
                 myD.append(a)
+
             for r in range(myL + 1):  # plus 1 for label
                 l = []
                 for c in myD:

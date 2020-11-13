@@ -2,6 +2,7 @@ import os.path
 
 from qgis.PyQt.QtWidgets import QDialog, QColorDialog, QMessageBox
 from qgis.PyQt import uic
+from qgis.PyQt.QtCore import QTimer
 
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'lpConfigPlotDialog.ui'))
@@ -18,23 +19,31 @@ class LPConfigPlotDialog(QDialog, FORM_CLASS):
         self.data = {}
         self.row = self.model.itemFromIndex(self.index).row()
 
-        print('self.row: ', self.row)
-
         self.plotColor.clicked.connect(self.changePlotColor)
 
         self.setParams()
 
-        self.CBX_Data.currentIndexChanged.connect(self.changeDataName)
+        self.CBX_Data.currentTextChanged.connect(self.changeDataName)
         self.CKB_MovAve.stateChanged.connect(self.changeMovAveState)
         self.SPN_MovAveN.valueChanged.connect(self.changeMovAveN)
         self.CKB_FullRes.stateChanged.connect(self.changeFullResState)
-        self.SPN_MaxDist.editingFinished.connect(self.changeMaxDist)
+        self.SPN_MaxDist.valueChanged.connect(self.handle_changeMaxDist)
         self.CKB_SamplingState.stateChanged.connect(
-            self.changeAreaSamplingState)
+            self.handle_changeAreaSamplingState)
         self.SPN_SamplingWidth.valueChanged.connect(
             self.changeAreaSamplingWidth)
         self.BTN_Remove.clicked.connect(self.removeData)
         self.GRP_Main.clicked.connect(self.changeVisibleState)
+
+        self.timer_area_sampling_spin_box = QTimer()
+        self.timer_area_sampling_spin_box.setSingleShot(True)
+        self.timer_area_sampling_spin_box.timeout.connect(
+            self.changeAreaSamplingState)
+
+        self.timer_max_distance_tieline_spin_box = QTimer()
+        self.timer_max_distance_tieline_spin_box.setSingleShot(True)
+        self.timer_max_distance_tieline_spin_box.timeout.connect(
+            self.changeMaxDist)
 
     def setBGColor(self, target, color):
         target.setStyleSheet("background-color: %s" % color.name())
@@ -62,12 +71,19 @@ class LPConfigPlotDialog(QDialog, FORM_CLASS):
     def changeFullResState(self, state):
         self.model.setConfigs(self.row, {'fullRes': state})
 
-    def changeAreaSamplingState(self, state):
+    def handle_changeAreaSamplingState(self, state):
+        self.timer_area_sampling_spin_box.start(500)
+
+    def changeAreaSamplingState(self):
+        state = self.CKB_SamplingState.isChecked()
         self.model.setConfigs(self.row, {'areaSampling': state})
 
     def changeAreaSamplingWidth(self):
         self.model.setConfigs(
             self.row, {'areaSamplingWidth': self.SPN_SamplingWidth.value()})
+
+    def handle_changeMaxDist(self):
+        self.timer_max_distance_tieline_spin_box.start(500)
 
     def changeMaxDist(self):
         sameLayers = self.model.findSameLayers(self.model.getLayerId(self.row))
@@ -147,12 +163,7 @@ class LPConfigPlotDialog(QDialog, FORM_CLASS):
         msgBox.setWindowTitle("Remove Data")
         buttons = QMessageBox.Ok | QMessageBox.Cancel
         msgBox.setStandardButtons(buttons)
-        # res = QMessageBox.warning(self,
-        #                           title='Remove Data',
-        #                           text='',
-        #                           icon=QMessageBox.Critical,
-        #                           buttons=buttons)
-        returnValue = msgBox.exec()
+        returnValue = msgBox.exec_()
         if returnValue == QMessageBox.Ok:
             self.model.removeRows(self.row, 1)
             self.close()
