@@ -1,6 +1,7 @@
 <RCC>
     <qresource prefix="/plugins/line_profile" >
         <file>img/icon.png</file>
+        <file>img/icon_wiscsims.png</file>
         <file>img/cog.png</file>
         <file>img/alg.png</file>
     </qresource>
