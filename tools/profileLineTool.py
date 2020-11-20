@@ -29,8 +29,8 @@ class ProfileLineTool(QgsMapTool):
                 'line': rb_line,
                 'vertex': [rb_vertex1, rb_vertex2, ...],
                 'tieline': [rb_tieline1, rb_tieline2, ...],
-                'raster_sampling_area': [rb_sampling_area1, rb_sampling_area2, ...],
-                'raster_sampling_point': [rb_sampling_point1, rb_sampling_point2, ...],
+                'sampling_area': [rb_sampling_area1, rb_sampling_area2, ...],
+                'sampling_point': [rb_sampling_point1, rb_sampling_point2, ...],
            }
          }
         """
@@ -49,7 +49,7 @@ class ProfileLineTool(QgsMapTool):
         # set rubberband properties
         # False = not a polygon
         rb_line = QgsRubberBand(self.canvas, QgsWkbTypes.PointGeometry)
-        rb_line.setWidth(1)
+        rb_line.setWidth(2)
         rb_line.setIcon(QgsRubberBand.ICON_CIRCLE)
         rb_line.setColor(self.plColor[idx])
 
@@ -59,8 +59,8 @@ class ProfileLineTool(QgsMapTool):
                 'line': rb_line,
                 'vertex': [],
                 'tieline': [],
-                'raster_sampling_area': [],
-                'raster_sampling_point': []
+                'sampling_area': [],
+                'sampling_point': []
             }
         }
 
@@ -98,8 +98,8 @@ class ProfileLineTool(QgsMapTool):
             # clear list of tieline rubberbands
             self.profile[profile_index]['markers']['tieline'] = []
 
-            self.reset_raster_sampling_points()
-            self.reset_raster_sampling_area()
+            self.reset_sampling_points()
+            self.reset_sampling_areas()
         except Exception:
             pass
 
@@ -123,7 +123,6 @@ class ProfileLineTool(QgsMapTool):
     def add_point(self, point, end_point=False, profile_index=None):
         if profile_index is None:
             profile_index = self.profile_line_index
-        print('profile index: ', profile_index)
 
         # add coordinates
         self.profile[profile_index]['point'].append(point)
@@ -236,14 +235,11 @@ class ProfileLineTool(QgsMapTool):
         return [[pt.x(), pt.y()] for pt in self.profile[profile_index]['point']]
 
     def hide_profile_line(self):
-        # print('hide_profile_line')
         self.profile_line_points = self.get_all_profile_points()
         self.reset_all_profile()
 
     def show_profile_line(self):
-        # print('show_profile_line')
         if sum([len(p) for p in self.profile_line_points]) == 0:
-            # print('no hidden profile lines')
             return
 
         profile_line_index_original = self.profile_line_index
@@ -302,42 +298,13 @@ class ProfileLineTool(QgsMapTool):
             self.scene.removeItem(self.tracking_marker)
             self.tracking_marker = None
 
-    def add_sampling_area(self, pts, color):
-        myColor = QColor(color)
-        myColor.setAlpha(35)
-        for pt in pts:
-            rb = QgsRubberBand(self.canvas, QgsWkbTypes.PolygonGeometry)
-            rb.addPoint(QgsPointXY(*pt[0]))
-            rb.addPoint(QgsPointXY(*pt[1]))
-            rb.addPoint(QgsPointXY(*pt[3]))
-            rb.addPoint(QgsPointXY(*pt[2]))
-            rb.addPoint(QgsPointXY(*pt[0]))
-            rb.setColor(myColor)
-            rb.setWidth(2)
-            self.profile[self.profile_line_index]['markers']['raster_sampling_area'].append(
-                rb)
-
-    def add_sampling_points_old(self, pts, color):
-        myColor = QColor(color)
-        myColor.setAlpha(200)
-        mySize = 3
-        for pt in pts:
-            qpt = QgsPointXY(*pt)
-            rb = QgsRubberBand(self.canvas, QgsWkbTypes.PointGeometry)
-            rb.addPoint(qpt, True)
-            rb.setIconSize(mySize)
-            rb.setIcon(QgsRubberBand.ICON_CIRCLE)
-            rb.setColor(myColor)
-            self.profile[self.profile_line_index]['markers']['raster_sampling_point'].append(
-                rb)
-
     def get_base_sampling_point_vertex_marker(self, color=None, pt=None):
         """return vertex for sampling point; color and position are option
         color [option]: QColor object
         pt [option]: QgsPointXY
         """
 
-        my_size = 3
+        my_size = 5
         my_icon_type = QgsVertexMarker.ICON_CIRCLE
         qvm = QgsVertexMarker(self.canvas)
         qvm.setIconType(my_icon_type)
@@ -349,15 +316,6 @@ class ProfileLineTool(QgsMapTool):
             qvm.setCenter(pt)
 
         return qvm
-
-    def add_sampling_points(self, pts, color):
-        my_color = QColor(color)
-        my_color.setAlpha(200)
-        for pt in pts:
-            qpt = QgsPointXY(*pt)
-            vm = self.get_base_sampling_point_vertex_marker(my_color, qpt)
-            self.profile[self.profile_line_index]['markers']['raster_sampling_point'].append(
-                vm)
 
     def get_vertex_rb(self, profile_index, point, end_point=False):
         """return vertex rubberband with given params"""
@@ -383,21 +341,53 @@ class ProfileLineTool(QgsMapTool):
         # add last point
         self.terminate_profile(points[-1])
 
-    def reset_raster_sampling_points(self, profile_index=None):
+    def add_sampling_areas(self, profile_index, pts, color=None):
+        if color is None:
+            color = QColor(255, 30, 30)
+        myColor = QColor(color)
+        myColor.setAlpha(35)
+        for pt in pts:
+            rb = QgsRubberBand(self.canvas, QgsWkbTypes.PolygonGeometry)
+            rb.addPoint(QgsPointXY(*pt[0]))
+            rb.addPoint(QgsPointXY(*pt[1]))
+            rb.addPoint(QgsPointXY(*pt[3]))
+            rb.addPoint(QgsPointXY(*pt[2]))
+            rb.addPoint(QgsPointXY(*pt[0]))
+            rb.setColor(myColor)
+            rb.setWidth(2)
+            self.profile[profile_index]['markers']['sampling_area'].append(rb)
+
+    def add_sampling_points(self, profile_index, pts, color=None):
+        """ add sampling point markers to the canvas """
+
+        if not profile_index:
+            profile_index = self.profile_line_index
+
+        if color is None:
+            color = QColor(255, 0, 0)  # Red (default)
+
+        my_color = QColor(color)
+        my_color.setAlpha(100)
+        for pt in pts:  # scan d (vertical)
+            for p1 in pt:  # scan within same d (horizontal)
+                qpt = QgsPointXY(*p1)
+                vm = self.get_base_sampling_point_vertex_marker(my_color, qpt)
+                self.profile[profile_index]['markers']['sampling_point'].append(
+                    vm)
+
+    def reset_sampling_points(self, profile_index=None):
         if profile_index is None:
             profile_index = self.profile_line_index
-        #   - raster sampling area (rectangle) and sampling point
-        print('reset sample points: ', profile_index)
         [self.scene.removeItem(
-            pt) for pt in self.profile[profile_index]['markers']['raster_sampling_point']]
-        self.profile[profile_index]['markers']['raster_sampling_point'] = []
+            pt) for pt in self.profile[profile_index]['markers']['sampling_point']]
+        self.profile[profile_index]['markers']['sampling_point'] = []
 
-    def reset_raster_sampling_area(self, profile_index=None):
+    def reset_sampling_areas(self, profile_index=None):
         if profile_index is None:
             profile_index = self.profile_line_index
         [rect.reset() and self.scene.removeItem(rect)
-         for rect in self.profile[profile_index]['markers']['raster_sampling_area']]
-        self.profile[profile_index]['markers']['raster_sampling_area'] = []
+         for rect in self.profile[profile_index]['markers']['sampling_area']]
+        self.profile[profile_index]['markers']['sampling_area'] = []
 
     def reset_tielines(self, profile_index=None):
         if profile_index is None:

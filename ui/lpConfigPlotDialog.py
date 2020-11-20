@@ -75,7 +75,7 @@ class LPConfigPlotDialog(QDialog, FORM_CLASS):
         self.timer_area_sampling_spin_box.start(500)
 
     def changeAreaSamplingState(self):
-        state = self.CKB_SamplingState.isChecked()
+        state = self.CKB_SamplingState.checkState()
         self.model.setConfigs(self.row, {'areaSampling': state})
 
     def changeAreaSamplingWidth(self):

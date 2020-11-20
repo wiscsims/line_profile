@@ -144,6 +144,12 @@ class MyTableViewModel(QStandardItemModel):
     def getConfigs(self, row):
         return self.item(row, self.c['config']).data()
 
+    def getLayerById(self, id):
+        matched_layers = self.findItems(id, Qt.MatchExactly, self.c['layerId'])
+        if len(matched_layers):
+            return matched_layers[0]
+        return None
+
     """""""""""""""""""""""""""""""""""""""
     * SETTERS
     """""""""""""""""""""""""""""""""""""""

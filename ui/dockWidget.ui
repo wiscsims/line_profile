@@ -654,32 +654,6 @@
        <attribute name="title">
         <string>Development</string>
        </attribute>
-       <widget class="QCheckBox" name="ChkBox_ShowSamplingPoints">
-        <property name="geometry">
-         <rect>
-          <x>10</x>
-          <y>40</y>
-          <width>271</width>
-          <height>20</height>
-         </rect>
-        </property>
-        <property name="text">
-         <string>Show Sampling Points for Raster Layers</string>
-        </property>
-       </widget>
-       <widget class="QCheckBox" name="ChkBox_ShowSamplingAreas">
-        <property name="geometry">
-         <rect>
-          <x>10</x>
-          <y>10</y>
-          <width>271</width>
-          <height>20</height>
-         </rect>
-        </property>
-        <property name="text">
-         <string>Show Sampling Areas for Raster Layers</string>
-        </property>
-       </widget>
        <widget class="QCheckBox" name="ChkBox_pLineNormalize">
         <property name="geometry">
          <rect>
@@ -692,6 +666,63 @@
         <property name="text">
          <string>Normalized to Profile Line 1</string>
         </property>
+       </widget>
+       <widget class="QGroupBox" name="groupBox_3">
+        <property name="geometry">
+         <rect>
+          <x>220</x>
+          <y>10</y>
+          <width>142</width>
+          <height>141</height>
+         </rect>
+        </property>
+        <property name="title">
+         <string>Area Samplng</string>
+        </property>
+        <layout class="QVBoxLayout" name="verticalLayout_4">
+         <property name="spacing">
+          <number>15</number>
+         </property>
+         <property name="bottomMargin">
+          <number>12</number>
+         </property>
+         <item>
+          <widget class="QCheckBox" name="ChkBox_ShowSamplingAreas">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>Sampling Areas</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="ChkBox_ShowSamplingPoints">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Minimum" vsizetype="Maximum">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>Sampling Points</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QComboBox" name="ChkBox_Area_Sampling_Element">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+          </widget>
+         </item>
+        </layout>
        </widget>
       </widget>
      </widget>

@@ -124,12 +124,13 @@ class LineProfile:
         self.timer_pixel_size_spin_box = QTimer()
         self.timer_pixel_size_spin_box.setSingleShot(True)
 
+        self.n_profile_lines = 2
         self.pLines = []
 
         # instancialize tools
         self.profileLineTool = ProfileLineTool(self.canvas)
         self.plotTool = PlottingTool(self.model, self.drawTracer)
-        self.dpTool = DataProcessingTool()
+        self.dpTool = DataProcessingTool(self.n_profile_lines)
 
     # noinspection PyMethodMayBeStatic
 
@@ -238,7 +239,6 @@ class LineProfile:
         """Cleanup necessary items here when plugin dockwidget is closed"""
 
         # print "** CLOSING LineProfile"
-
         # disconnects
         # self.dockwidget.closingPlugin.disconnect(self.onClosePlugin)
         self.dock.closingPlugin.disconnect(self.onClosePlugin)
@@ -289,8 +289,7 @@ class LineProfile:
         if self.dock is None:
 
             # Create the dockwidget (after translation) and keep reference
-            self.dock = DockWidget(
-                self.iface.mainWindow(), self.iface, self.model)
+            self.dock = DockWidget(self.iface.mainWindow(), self.iface, self.model)
             self.dock.showDockWidget()
             self.dockOpened = True
             self.dock.closingPlugin.connect(self.onClosePlugin)
@@ -313,8 +312,7 @@ class LineProfile:
         self.timer.stop()
         try:
             w = 68 if self.dock.myTable.verticalScrollBar().isVisible() else 85
-            self.dock.myTable.setColumnWidth(
-                self.model.getColumnIndex('layer'), w)
+            self.dock.myTable.setColumnWidth(self.model.getColumnIndex('layer'), w)
         except Exception:
             pass
 
@@ -377,10 +375,24 @@ class LineProfile:
         self.updatePlot()
         try:
             w = 74 if self.dock.myTable.verticalScrollBar().isVisible() else 91
-            self.dock.myTable.setColumnWidth(
-                self.model.getColumnIndex('layer'), w)
+            self.dock.myTable.setColumnWidth(self.model.getColumnIndex('layer'), w)
         except Exception:
             pass
+
+        self.update_area_sampling_list()
+
+    def update_area_sampling_list(self):
+        my_cbx = self.dock.ChkBox_Area_Sampling_Element
+        my_cbx.clear()
+        for r in range(self.model.rowCount()):
+            element_name = self.model.getDataName(r)
+            layer_id = self.model.getLayerId(r)
+            layer_type = self.model.getLayerTypeName(r)
+            if layer_type == 'Vector':
+                continue
+            raster_layer_id = self.get_raster_layer_id(
+                r, layer_id, element_name)
+            my_cbx.addItem(element_name, raster_layer_id)
 
     def connectDock(self):
 
@@ -393,21 +405,15 @@ class LineProfile:
         # self.dock.resized.connect(self.updatePlot)
         self.dock.resized.connect(self.windowResizeEvent)
 
-        self.dock.myExportProfileLineBtn.clicked.connect(
-            self.openExportProfileLineDialog)
-        self.dock.Btn_ImportProfileLine.clicked.connect(
-            self.openImportProfileLineDialog)
+        self.dock.myExportProfileLineBtn.clicked.connect(self.openExportProfileLineDialog)
+        self.dock.Btn_ImportProfileLine.clicked.connect(self.openImportProfileLineDialog)
         self.dock.Btn_ExportPlot.clicked.connect(self.exportPlot)
         self.dock.ChkBox_TieLine.stateChanged.connect(self.updatePlot)
-        self.dock.ChkBox_Tracer.stateChanged.connect(
-            self.handle_toggle_tracking_marker)
-        self.dock.ChkBox_ShowSamplingPoints.stateChanged.connect(
-            self.updatePlot)
-        self.dock.ChkBox_ShowSamplingAreas.stateChanged.connect(
-            self.updatePlot)
+        self.dock.ChkBox_Tracer.stateChanged.connect(self.handle_toggle_tracking_marker)
+        self.dock.ChkBox_ShowSamplingPoints.stateChanged.connect(self.handle_sampling_point_display)
+        self.dock.ChkBox_ShowSamplingAreas.stateChanged.connect(self.handle_sampling_area_display)
         self.dock.Btn_ExportProfileData.clicked.connect(self.exportProfileData)
-        self.dock.CmbBox_ProfileLine.currentIndexChanged.connect(
-            self.changeCurrentProfileLine)
+        self.dock.CmbBox_ProfileLine.currentIndexChanged.connect(self.changeCurrentProfileLine)
         self.dock.ChkBox_pLineNormalize.stateChanged.connect(self.updatePlot)
 
         self.dock.Btn_AddProfileLine.clicked.connect(self.clear_profile_line)
@@ -427,24 +433,17 @@ class LineProfile:
 
     def disconnectDock(self):
         try:
-            self.dock.myExportProfileLineBtn.clicked.disconnect(
-                self.openExportProfileLineDialog)
-            self.dock.Btn_ImportProfileLine.clicked.disconnect(
-                self.openImportProfileLineDialog)
+            self.dock.myExportProfileLineBtn.clicked.disconnect(self.openExportProfileLineDialog)
+            self.dock.Btn_ImportProfileLine.clicked.disconnect(self.openImportProfileLineDialog)
             self.dock.Btn_ExportPlot.clicked.disconnect(self.exportPlot)
             self.dock.ChkBox_TieLine.stateChanged.disconnect(self.updatePlot)
-            self.dock.ChkBox_ShowSamplingPoints.stateChanged.disconnect(
-                self.updatePlot)
-            self.dock.ChkBox_ShowSamplingAreas.stateChanged.disconnect(
-                self.updatePlot)
-            self.dock.Btn_ExportProfileData.clicked.disconnect(
-                self.exportProfileData)
+            self.dock.ChkBox_ShowSamplingPoints.stateChanged.disconnect(self.updatePlot)
+            self.dock.ChkBox_ShowSamplingAreas.stateChanged.disconnect(self.updatePlot)
+            self.dock.Btn_ExportProfileData.clicked.disconnect(self.exportProfileData)
             self.dock.CmbBox_ProfileLine.currentIndexChanged.disconnect(
                 self.changeCurrentProfileLine)
-            self.dock.Btn_AddProfileLine.clicked.disconnect(
-                self.addProfileLine)
-            self.dock.ChkBox_pLineNormalize.stateChanged.disconnect(
-                self.updatePlot)
+            self.dock.Btn_AddProfileLine.clicked.disconnect(self.addProfileLine)
+            self.dock.ChkBox_pLineNormalize.stateChanged.disconnect(self.updatePlot)
 
             self.dock.resizeEvent = None
 
@@ -542,12 +541,20 @@ class LineProfile:
 
         self.dpTool.pixel_size = pixel_size
         self.timer_pixel_size_spin_box.start(1000)
+
         # print('pixel size: ', self.dpTool.pixel_size)
+    def get_raster_layer_id(self, row, layer_id, element_name):
+        return '{}_{}_{}'.format(row, layer_id[-8:], element_name)
 
     def updatePlot(self):
+        """ sampling/correct data from raster and vector layers along with profile line,
+        then create/update plot
+        """
         self.pLines = []
+
         if not self.model.updateFlag:
             return
+
         if self.canvas.layerCount() == 0 or self.model.rowCount() == 0:
             self.profileLineTool.reset_all_profile()
             # self.profileLineTool.resetProfileLine()
@@ -566,6 +573,7 @@ class LineProfile:
             pp = profPoints[pIndex]
             self.updateProfileLineData(pIndex, pp)
             self.pLines.append(self.dpTool.getProfileLines(pp))
+
         if reduce(lambda x, y: x + len(y), self.pLines, 0) == 0:
             return False
 
@@ -599,15 +607,19 @@ class LineProfile:
                 color_org = self.model.getColorName(r)
                 layer_type = layer.type()
 
-                # Vector layer
-                if layer.type() == layer.VectorLayer:
+                if layer_type == layer.VectorLayer:
+                    """Vector Layer"""
                     myData = self.dpTool.getVectorProfile(
                         pp, layer, field, config['maxDistance'], None, pIndex)
 
-                # Raster layer
-                elif layer.type() == layer.RasterLayer:
-                    myData = self.dpTool.getRasterProfile(pp, layer, field, config['fullRes'], int(
-                        config['areaSampling']) * config['areaSamplingWidth'])
+                elif layer_type == layer.RasterLayer:
+                    """Raster Layer"""
+                    equi_width = int(config['areaSampling']) * \
+                        config['areaSamplingWidth']
+                    raster_layer_id = self.get_raster_layer_id(
+                        r, layer.id(), label)
+                    myData = self.dpTool.getRasterProfile(
+                        pp, layer, field, config['fullRes'], raster_layer_id, equi_width, pIndex)
                     # draw raster sampling area and pionts
 
                 data.append({'data': myData,
@@ -616,13 +628,16 @@ class LineProfile:
                              'layer': layer,
                              'layer_type': layer_type,
                              'color_org': color_org})
-            self.handle_raster_sampling_details(pIndex, config, color_org)
+            # self.handle_raster_sampling_details(pIndex, config, color_org)
             self.plotData.append(data)
 
         # draw tie lines
         if self.dock.ChkBox_TieLine.isChecked():
             self.profileLineTool.draw_tieline(self.dpTool.getTieLines())
 
+        # draw sampling points and areas
+        self.handle_sampling_point_display()
+        self.handle_sampling_area_display()
         # draw sampling points on raster layer for debugging
         # if self.debugFlag is True:
         #     for pt in self.dpTool.getSamplingPoints():
@@ -634,16 +649,79 @@ class LineProfile:
         self.plotTool.drawPlot3(self.pLines, self.plotData,
                                 pLineNormalize=self.dock.ChkBox_pLineNormalize.isChecked())
 
+    # def handle_sampling_details(self):
+    #     """ handle show/hide sampling areas and points """
+    #
+    #     for profile_index in range(self.n_profile_lines):
+    #         # scan each profile line
+    #         pt = self.profileLineTool.profile[profile_index]['point']
+    #         if len(pt) == 0:
+    #             # no profile line
+    #             continue
+    #
+    #         if self.dock.ChkBox_ShowSamplingPoints.isChecked():
+    #             self.show_sampling_points(profile_index)
+
+    def handle_sampling_point_display(self):
+        """ handle show/hide sampling points """
+
+        self.hide_all_sampling_points()
+        if self.dock.ChkBox_ShowSamplingPoints.isChecked():
+            [self.show_sampling_points(profile_index) for profile_index in range(
+                self.n_profile_lines) if len(self.profileLineTool.profile[profile_index]['point'])]
+
+    def show_sampling_points(self, profile_index):
+        """draw sampling points """
+        current_id = self.dock.ChkBox_Area_Sampling_Element.currentIndex()
+        layer_id = self.dock.ChkBox_Area_Sampling_Element.itemData(current_id)
+        ks = self.dpTool.sampling_points[profile_index].keys()
+
+        if layer_id in ks:
+            sampling_pts = self.dpTool.sampling_points[profile_index][layer_id]
+            self.profileLineTool.add_sampling_points(
+                profile_index, sampling_pts)
+
+    def hide_all_sampling_points(self):
+        [self.hide_sampling_points(profile_index) for profile_index in range(self.n_profile_lines)]
+
+    def hide_sampling_points(self, profile_index):
+        self.profileLineTool.reset_sampling_points(profile_index)
+
+    def handle_sampling_area_display(self):
+        """ handle show/hide sampling areas """
+        self.hide_all_sampling_areas()
+        if self.dock.ChkBox_ShowSamplingAreas.isChecked():
+            [self.show_sampling_areas(profile_index) for profile_index in range(
+                self.n_profile_lines) if len(self.profileLineTool.profile[profile_index]['point'])]
+
+    def show_sampling_areas(self, profile_index):
+        """ draw sampling areas belong to specified profile line """
+        current_id = self.dock.ChkBox_Area_Sampling_Element.currentIndex()
+        layer_id = self.dock.ChkBox_Area_Sampling_Element.itemData(current_id)
+        ks = self.dpTool.sampling_points[profile_index].keys()
+
+        if layer_id in ks:
+            sampling_areas = self.dpTool.sampling_areas[profile_index][layer_id]
+            self.profileLineTool.add_sampling_areas(profile_index, sampling_areas)
+
+    def hide_all_sampling_areas(self):
+        """ remove all sampling areas for all profile lines """
+        [self.hide_sampling_areas(profile_index) for profile_index in range(self.n_profile_lines)]
+
+    def hide_sampling_areas(self, profile_index):
+        """ remove sampling area belong to specified profile line """
+        self.profileLineTool.reset_sampling_areas(profile_index)
+
     def handle_raster_sampling_details(self, p_index, config, color_org):
         """draw raster sampling area and points"""
 
-        self.profileLineTool.reset_raster_sampling_area(p_index)
+        self.profileLineTool.reset_sampling_areas(p_index)
         self.profileLineTool.reset_raster_sampling_points(p_index)
 
         if config['areaSampling']:
             # add sampling area
             if self.dock.ChkBox_ShowSamplingAreas.isChecked():
-                self.profileLineTool.add_sampling_area(
+                self.profileLineTool.add_sampling_areas(
                     self.dpTool.getSamplingArea(), color_org)
 
             # add sampling points
@@ -781,15 +859,13 @@ class LineProfile:
         self.updatePlot()
 
     def init_profile_line(self):
-        n = 2
-
-        for i in range(n):
+        for i in range(self.n_profile_lines):
             self.dock.CmbBox_ProfileLine.addItem(
                 'Profile Line {}'.format(i + 1), i)
         self.dock.CmbBox_ProfileLine.setCurrentIndex(0)
 
         # self.profileLineTool.initProfileLine(n)
-        self.profileLineTool.init_profile(n)
+        self.profileLineTool.init_profile(self.n_profile_lines)
 
     def clear_profile_line(self):
         # self.profileLineTool.resetProfileLine()

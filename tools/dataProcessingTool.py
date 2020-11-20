@@ -6,7 +6,7 @@ from qgis.core import QgsPointXY, QgsRaster, NULL
 
 class DataProcessingTool():
 
-    def __init__(self):
+    def __init__(self, n_profile_lines):
         self.tieLine = []
         self.tieLineFlag = False
         self.tieLineDone = []
@@ -15,17 +15,45 @@ class DataProcessingTool():
         self.samplingArea = []
         self.samplingWidth = 0
 
+        self.sampling_points = []  # [{profile-1}, {profile-2'}]
+        self.sampling_areas = []
+        """
+        data structure of sampling_points
+        each profile line has list of points data with layer_id
+        [
+            {   # Profile 1
+                'layer_id-1': [list_of_QgsPointXY],
+                'layer_id-2': [list_of_QgsPointXY],
+                ...
+            },
+            {   # Profile 2
+                'layer_id-1': [list_of_QgsPointXY],
+                'layer_id-2': [list_of_QgsPointXY],
+                ...
+            },
+        ]
+        """
+        self.init_area_samplings(n_profile_lines)
+
         self.pixel_size = 1
+
+    def init_area_samplings(self, n_profile_lines):
+        for n in range(n_profile_lines):
+            self.sampling_points.append({})
+            self.sampling_areas.append({})
 
     def getProfileLines(self, profilePoints):
         out = []
         for i in range(len(profilePoints) - 1):
             pt1 = profilePoints[i]
             pt2 = profilePoints[i + 1]
-            a, b = self.calcSlopeIntercept(pt1, pt2)
+            a, b = self.calcSlopeIntercept(
+                pt1, pt2)
             out.append({
-                'start': pt1,    # [x, y] start
-                'end': pt2,      # [x, y] end
+                # [x, y] start
+                'start': pt1,
+                # [x, y] end
+                'end': pt2,
                 'slope': a,      # slope
                 'intercept': b,  # intercept
                 'distance': self.getDistance(pt1, pt2),
@@ -33,9 +61,7 @@ class DataProcessingTool():
             })
         return out
 
-    def getVectorProfile(self, pLines, layer, field,
-                         distLimit=1e+8,
-                         distanceField=None, pIndex=0):
+    def getVectorProfile(self, pLines, layer, field, distLimit=1e+8, distanceField=None, pIndex=0):
 
         x, y, d = [], [], 0
 
@@ -70,7 +96,8 @@ class DataProcessingTool():
             pt = f.geometry().asPoint()
             prjPoint = self.getProjectedPoint(pLines, pt, distLimit)
             if prjPoint is not False:
-                d = self.sumD(pLines[:prjPoint[2]])
+                d = self.sumD(
+                    pLines[:prjPoint[2]])
                 d += self.getDistance([prjPoint[0], prjPoint[1]],
                                       pLines[prjPoint[2]]['start'])
                 x.append(d)
@@ -112,11 +139,13 @@ class DataProcessingTool():
                 dist -= d - v['distance']
                 break
         cu = pLines[k]
-        if cu['slope'] == float('inf'):  # vertical
+        # vertical
+        if cu['slope'] == float('inf'):
             dX = 0
             dY = dist
         else:
-            dX = cos(atan(cu['slope'])) * dist
+            dX = cos(
+                atan(cu['slope'])) * dist
             dY = cu['slope'] * dX
         # +/- direction
         tmp = 1 if cu['end'][1] > cu['start'][1] else -1
@@ -127,9 +156,14 @@ class DataProcessingTool():
 
         return [x, y]
 
-    def getRasterProfile(self, pLines, layer, band, fullRes, equiWidth=0):
+    def getRasterProfile(self, pLines, layer, band, fullRes, raster_layer_id, equiWidth=0, profile_index=None):
+
+        if profile_index is None:
+            return
+
         x = []
         y = []
+
         self.initSamplingPoints()
         self.initSamplingRange()
         self.initSamplingArea()
@@ -140,41 +174,55 @@ class DataProcessingTool():
         dp = layer.dataProvider()
         band = int(band.replace('Band ', ''))
         pixelSize = layer.rasterUnitsPerPixelX() if fullRes else 1
+
         # index number of current segment
         cP = 0
 
-        # current distance within current segment from origin of the profile line
-        tmpD = 0
+        # current distance from the start point of the profile line
+        current_d = 0
 
         # total distance of profile line
-        totalD = self.sumD(pLines)
+        total_d = self.sumD(pLines)
 
-        # max distance of current segment
-        tmpDMax = self.sumD(pLines[0:cP + 1])
+        # max distance up to the current segment
+        current_seg_max_d = self.sumD(pLines[0:cP + 1])
 
-        tmpX, tmpY = pLines[cP]['start']
+        current_X, current_Y = pLines[cP]['start']
         equiWidth = int(round(equiWidth / 2 / (pixelSize * self.pixel_size)))
         self.setSamplingWidth(equiWidth)
 
-        acP = -1
-        while tmpD < totalD:
-            # first point of each segment
-            if tmpD >= tmpDMax or tmpD == 0:
-                if tmpD > 0:
-                    cP += 1
-                    tmpD = tmpDMax
-                    tmpX = pLines[cP]['start'][0]
-                    tmpY = pLines[cP]['start'][1]
-                    tmpDMax = self.sumD(pLines[0:cP + 1])
+        # flag_segment_first_spot = True
 
+        acP = -1
+
+        while current_d < total_d:
+            # first point of each segment
+            # if current_d >= curent_seg_max_d or current_d == 0:
+            if current_d >= current_seg_max_d or current_d == 0:
+
+                # except starting point of profline line
+                if current_d > 0:
+                    cP += 1
+
+                    # last spot of former segment
+                    current_d = current_seg_max_d
+
+                    current_X, current_Y = pLines[cP]['start']
+                    # new max distance up to current segment
+                    current_seg_max_d = self.sumD(pLines[0:cP + 1])
+
+                # set slope and directon of current segment
                 slope, direction = self.getDirectionSlope(pLines[cP])
+
+                # calculate step sizes of X, Y and direction
                 if slope is False:  # vertical
                     dX = 0
                     dY = 1
                     if pLines[cP]['start'][1] > pLines[cP]['end'][1]:
-                        dY = -1
+                        dY *= -1
                 else:
-                    dX = abs(cos(atan(pLines[cP]['slope']))) * direction
+                    dX = abs(cos(atan(
+                        pLines[cP]['slope']))) * direction
                     dY = abs(
                         sin(atan(pLines[cP]['slope']))) * direction * slope
 
@@ -185,7 +233,9 @@ class DataProcessingTool():
             # qgsPoint
             # find equilevel
             # get equilevel points => equiPoints
-            if acP is not cP:
+
+            """ get sampling area rectable """
+            if acP != cP:
                 acP = cP
                 # start point
                 acP_s = self.getEquiPoints(
@@ -195,36 +245,37 @@ class DataProcessingTool():
                     pLines[acP]['end'][0], pLines[acP]['end'][1], equiWidth, dX, dY)
 
                 # sampling area (coordinates of the rectangle)
-                self.addSamplingArea(
-                    [acP_s[0], acP_s[-1], acP_e[0], acP_e[-1]])
+                self.addSamplingArea([acP_s[0], acP_s[-1], acP_e[0], acP_e[-1]])
 
-            equiPoints = self.getEquiPoints(tmpX, tmpY, equiWidth, dX, dY)
+            """ get points within sampling width """
+            equiPoints = self.getEquiPoints(
+                current_X, current_Y, equiWidth, dX, dY)
 
             tmpVal = 0
 
+            """ sampling points by coordinates [x, y] """
             self.addSamplingRange(equiPoints)
             for n in range(0, len(equiPoints)):
-                # tmpVal += self.getPointValue(dp, qgsPoint[i], band)
-                # qgsPoint = QgsPointXY(equiPoints[n][0], equiPoints[n][1])
                 qgsPoint = QgsPointXY(*equiPoints[n])
                 tmpVal += self.getPointValue(dp, qgsPoint, band)
 
             aveVal = tmpVal / len(equiPoints)
-            # averageVal = tmpVal / length(equiPoints)
-            # y.append(tmpVal / len(equiPoints)) # add averaged value
-            # qgsPoint = QgsPoint(tmpX, tmpY)
-            # y.append(self.getPointValue(dp, qgsPoint, band))
+
             y.append(aveVal)
-            x.append(tmpD)
-            self.samplingPoints.append(QgsPointXY(tmpX, tmpY))
-            tmpX += dX
-            tmpY += dY
-            tmpD += pixelSize
+            x.append(current_d)
+
+            """ sampling points by QgsPointXY """
+            self.samplingPoints.append(QgsPointXY(current_X, current_Y))
+
+            current_X += dX
+            current_Y += dY
+            current_d += pixelSize
 
         else:  # while-else
+            """ end point """
             # run only one time after exit from while block
             endPoint = pLines[len(pLines) - 1]['end']
-            # qgsPoint = QgsPoint(tmpX, tmpY)
+            # qgsPoint = QgsPoint(curernt_X, current_Y)
             equiPoints = self.getEquiPoints(
                 endPoint[0], endPoint[1], equiWidth, dX, dY)
             tmpVal = 0
@@ -234,17 +285,21 @@ class DataProcessingTool():
                 tmpVal += self.getPointValue(dp, qgsPoint, band)
             aveVal = tmpVal / len(equiPoints)
             y.append(aveVal)
-            # y.append(self.getPointValue(dp, qgsPoint, band))
-            x.append(totalD)
-            # self.samplingPoints.append(qgsPoint)
+            x.append(total_d)
             self.samplingPoints.append(endPoint)
 
         # apply pixel size
         x = [v * self.pixel_size for v in x]
 
+        # self.sampling_points[profile_index][layer.id()] = self.samplingPoints
+
+        self.sampling_points[profile_index][raster_layer_id] = self.getSamplingRange()
+        self.sampling_areas[profile_index][raster_layer_id] = self.getSamplingArea()
+
         return [x, y]
 
     def getEquiPoints(self, x, y, w, dx, dy):
+        """ Return points within sampling width (w) """
         out = []
         if w < 1:
             out = [[x, y]]
@@ -252,7 +307,8 @@ class DataProcessingTool():
             rdx = dy
             rdy = -dx
             for i in range(-w, w + 1):
-                out.append([x + i * rdx, y + i * rdy])
+                out.append(
+                    [x + i * rdx, y + i * rdy])
         return out
 
     def getPointValue(self, dp, point, band):
@@ -269,13 +325,15 @@ class DataProcessingTool():
         for index, pLine in enumerate(pLines):
             slope = pLine['slope']
             intercept = pLine['intercept']
-            if slope == float('inf'):  # vertical profile line
+            # vertical profile line
+            if slope == float('inf'):
                 tmpx = pLine['end'][0]
                 tmpy = pt[1]
             elif slope == 0:  # horizontal profile line
                 tmpx = pt[1]
                 tmpy = pLine['end'][1]
-            elif pt[1] == slope * pt[0] + intercept:  # point on profile line
+            # point on profile line
+            elif pt[1] == slope * pt[0] + intercept:
                 tmpx = pt[0]
                 tmpy = pt[1]
             else:  # others
@@ -346,7 +404,8 @@ class DataProcessingTool():
                 if self.getDistance(pLine['start'], pt) < tmpD:
                     return {'seg': -1}
             else:
-                tmpD = self.getDistance(pLine['end'], pt)
+                tmpD = self.getDistance(
+                    pLine['end'], pt)
             if d > tmpD:
                 d = tmpD
                 segment = index
@@ -385,7 +444,8 @@ class DataProcessingTool():
             a = float('inf')
             b = None
         else:
-            a = (pt2[1] - pt1[1]) / (pt2[0] - pt1[0])
+            a = (
+                pt2[1] - pt1[1]) / (pt2[0] - pt1[0])
             b = pt2[1] - a * pt2[0]
         return [a, b]
 
@@ -398,7 +458,8 @@ class DataProcessingTool():
         self.tieLineDone = []
 
     def addTieLine(self, pIndex, pt1, pt2):
-        self.tieLine[pIndex].append([pt1, pt2])
+        self.tieLine[pIndex].append(
+            [pt1, pt2])
 
     def getTieLines(self):
         return self.tieLine
