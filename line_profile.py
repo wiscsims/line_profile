@@ -420,6 +420,10 @@ class LineProfile:
 
         self.dock.Spn_PixelSize.valueChanged.connect(self.update_pixel_size)
 
+        self.dock.Grp_Normalized.clicked.connect(self.updatePlot)
+        self.dock.Rdo_By_Total_Length.clicked.connect(self.updatePlot)
+        self.dock.Rdo_By_Segment.clicked.connect(self.updatePlot)
+
         # model
         self.model.itemChanged.connect(self.myConnect)
         self.model.rowsInserted.connect(self.myConnect)
@@ -645,22 +649,36 @@ class LineProfile:
 
         # self.profileLineTool.updateProfileLine()
 
-        # draw line profile
-        self.plotTool.drawPlot3(self.pLines, self.plotData,
-                                pLineNormalize=self.dock.ChkBox_pLineNormalize.isChecked())
+        normalized = self.dock.Grp_Normalized.isChecked()
+        normalized_by_segment = self.dock.Rdo_By_Segment.isChecked()
 
-    # def handle_sampling_details(self):
-    #     """ handle show/hide sampling areas and points """
-    #
-    #     for profile_index in range(self.n_profile_lines):
-    #         # scan each profile line
-    #         pt = self.profileLineTool.profile[profile_index]['point']
-    #         if len(pt) == 0:
-    #             # no profile line
-    #             continue
-    #
-    #         if self.dock.ChkBox_ShowSamplingPoints.isChecked():
-    #             self.show_sampling_points(profile_index)
+        """ check profile lines whether normalizable or not """
+        if normalized and normalized_by_segment:
+            n_seg = len(self.pLines[0])
+            for i in range(1, len(self.pLines)):
+                if n_seg != len(self.pLines[i]):
+                    # Show message (need to have same number of segment)
+                    self.show_error_message_on_normaliziation('Need same number of segments.')
+                    return
+
+        if normalized:
+            for i in range(len(self.pLines)):
+                if len(self.pLines[i]) == 0:
+                    # Show message (need to have same number of segment)
+                    self.show_error_message_on_normaliziation('At least two profile line needed.')
+                    return
+
+        """ draw plot """
+        self.plotTool.drawPlot3(self.pLines, self.plotData, pLineNormalized=normalized,
+                                pLineNormalizedBySegment=normalized_by_segment)
+
+    def show_error_message_on_normaliziation(self, text):
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Warning)
+        msg.setText(text)
+        msg.setWindowTitle("Error: Normalization")
+        msg.exec_()
+        pass
 
     def handle_sampling_point_display(self):
         """ handle show/hide sampling points """

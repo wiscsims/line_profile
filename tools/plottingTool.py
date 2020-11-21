@@ -100,14 +100,8 @@ class PlottingTool:
         maX, maY = self.calculateMovingAverage(data, N)
         movAve, = host.plot(maX, maY, color=color, linestyle=linestyle)
 
-    def is_nomalizable(self, pLine):
-        """check profile line can be normalize """
-        out = True
-        for p in pLine:
-            if len(p) == 0:
-                out = False
-                break
-        return out
+    def sum_profile_line(self, profile_line):
+        return reduce(lambda x, y: x + y['distance_pixel_sized'], profile_line, 0.0)
 
     def drawPlot3(self, pLines, data, **opt):
         # clear current plot
@@ -121,18 +115,35 @@ class PlottingTool:
         linewidth = [1, 1.5, 1.8, 2]
         symbolAlpha = [1, 0.6, 0.3]
 
-        pLineNorm = opt['pLineNormalize']
+        pLineNorm = opt['pLineNormalized']
+        pLineNorm_by_segment = opt['pLineNormalizedBySegment']
+        pLineNorm_base_index = 0
 
+        """ calculate normalization factors """
         normFactor = []
-        if pLineNorm and self.is_nomalizable(pLines):
-            deno = reduce(lambda x, y: x + y['distance_pixel_sized'],
-                          pLines[0], 0.00)
+        if pLineNorm and pLineNorm_by_segment:
             for pIndex in range(len(pLines)):
-                normFactor.append(deno / reduce(lambda x, y: x + y['distance_pixel_sized'],
-                                                pLines[pIndex], 0.00))
+                """ scan profile line """
+                # normFactor[
+                #   ['norm factor for pLines[0] seg 0', 'norm factor for pLines[0] seg 1', ...],
+                #   ['norm factor for pLines[1] seg 0', 'norm factor for pLines[1] seg 1', ...],
+                #   [...]
+                # ]
+                """ scan segment """
+                normFactorBySegment = []
+                for i, seg in enumerate(pLines[pLineNorm_base_index]):
+                    normFactorBySegment.append(
+                        seg['distance_pixel_sized'] / pLines[pIndex][i]['distance_pixel_sized'])
+                normFactor.append(normFactorBySegment)
+
+        elif pLineNorm:
+            # normFactor['norm factor for pLines[0]', 'norm factor for pLines[1]', ...]
+            deno = self.sum_profile_line(pLines[pLineNorm_base_index])
+            [normFactor.append(deno / self.sum_profile_line(pLines[pIndex]))
+             for pIndex in range(len(pLines))]
         else:
-            for pIndex in range(len(pLines)):
-                normFactor.append(1)
+            # [1, 1, 1, ...] No normalization => all factors are 1
+            [normFactor.append(1) for pIndex in range(len(pLines))]
 
         # find index of longest profile line
         longestN = 0
@@ -166,10 +177,48 @@ class PlottingTool:
                 if not len(data[pIndex]):
                     continue
                 dd = data[pIndex][dataN - 1]
-                tmp = list(
-                    map(lambda x: x * normFactor[pIndex], dd['data'][0]))
-                dd['data'][0] = tmp
 
+                """
+                dd = {
+                    'data': [[x0, x1, x2, ...], [y0, y1, y2, ...]],
+                    'label': 'element name',
+                    'configs': {
+                        'areaSampling': 0,
+                        'areaSamplingWidth': 5,
+                        ....
+                    },
+                    'layer': QgsMapLayer,
+                    'layer_type': QgsMapLayerType,
+                    'color_org': '#xxxxxx'
+                }
+                """
+
+                """ normalization """
+                # normalizing data (x values) by base profile line (default - currently fixed: Profile Line 1)
+                if pLineNorm:
+                    tmp = []
+                    if pLineNorm_by_segment:
+                        # apply segmment specific normilization factor to x values
+                        seg_index = 0
+                        seg_d = pLines[pIndex][seg_index]['distance_pixel_sized']
+                        x_offset = 0  # x value of start.x for current segment
+                        x_offset_scaled = 0
+                        for x in dd['data'][0]:
+                            if seg_d < x:
+                                x_offset += pLines[pIndex][seg_index]['distance_pixel_sized']
+                                x_offset_scaled += pLines[pIndex][seg_index]['distance_pixel_sized'] * \
+                                    normFactor[pIndex][seg_index]
+                                seg_index += 1
+                                seg_d += pLines[pIndex][seg_index]['distance_pixel_sized']
+                            tmp.append((x - x_offset) *
+                                       normFactor[pIndex][seg_index] + x_offset_scaled)
+                    else:
+                        # apply normalizatin factor of each profile line
+                        tmp = [x * normFactor[pIndex] for x in dd['data'][0]]
+
+                    dd['data'][0] = tmp
+
+                """ moving average """
                 if d['layer_type'] and d['configs']['movingAverage']:
                     self.movingAverage(myAx, dd['data'], dd['color_org'],
                                        dd['configs']['movingAverageN'],
@@ -216,22 +265,29 @@ class PlottingTool:
 
             hostPlotFlag = False
 
-        # draw vertical line for vertices of profile line(s)
-        plColor = [u'red', u'blue']
+        """ handle draw segment separators in the plot """
+        # draw vertical line for each vertices of profile line(s)
+        plColor = [u'red', u'blue', u'green']
         for pIndex in range(len(pLines)):
             d = 0
-            for i in range(len(pLines[pIndex]) - 1):
-                d += pLines[pIndex][i]['distance_pixel_sized']
-                self.host.axvline(x=d * normFactor[pIndex],
-                                  c=plColor[pIndex], ls=u':', lw=1, alpha=0.3)
+            for i in range(len(pLines[pIndex]) - 1):  # avoid last line
+                # scan segments
+                if pLineNorm_by_segment:
+                    # same as pLineNorm base profile line
+                    d += pLines[pLineNorm_base_index][i]['distance_pixel_sized']
+                else:
+                    d += pLines[pIndex][i]['distance_pixel_sized'] * normFactor[pIndex]
+                self.host.axvline(x=d, c=plColor[pIndex], ls=u':', lw=1, alpha=0.3)
 
         # set x-axis start with 0, end with endpoint of profile line
         dMax = []
-        # for pL in pLines:
-        for pIndex in range(len(pLines)):
-            pL = pLines[pIndex]
-            dMax.append(
-                reduce(lambda x, y: x + y['distance_pixel_sized'] * normFactor[pIndex], pL, 0.00))
+
+        if pLineNorm_by_segment:
+            # Length of base profile line (normalizer)
+            dMax = [self.sum_profile_line(pLines[pLineNorm_base_index])]
+        else:
+            [dMax.append(self.sum_profile_line(pLines[pIndex]) * normFactor[pIndex])
+             for pIndex in range(len(pLines))]
 
         self.host.set_xlim(0, max(dMax))
         myRange = self.host.axis()

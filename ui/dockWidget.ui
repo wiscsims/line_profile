@@ -69,7 +69,7 @@
        </size>
       </property>
       <property name="currentIndex">
-       <number>0</number>
+       <number>2</number>
       </property>
       <widget class="QWidget" name="Plot">
        <attribute name="title">
@@ -654,76 +654,101 @@
        <attribute name="title">
         <string>Development</string>
        </attribute>
-       <widget class="QCheckBox" name="ChkBox_pLineNormalize">
-        <property name="geometry">
-         <rect>
-          <x>10</x>
-          <y>70</y>
-          <width>191</width>
-          <height>20</height>
-         </rect>
-        </property>
-        <property name="text">
-         <string>Normalized to Profile Line 1</string>
-        </property>
-       </widget>
-       <widget class="QGroupBox" name="groupBox_3">
-        <property name="geometry">
-         <rect>
-          <x>220</x>
-          <y>10</y>
-          <width>142</width>
-          <height>141</height>
-         </rect>
-        </property>
-        <property name="title">
-         <string>Area Samplng</string>
-        </property>
-        <layout class="QVBoxLayout" name="verticalLayout_4">
-         <property name="spacing">
-          <number>15</number>
-         </property>
-         <property name="bottomMargin">
-          <number>12</number>
-         </property>
-         <item>
-          <widget class="QCheckBox" name="ChkBox_ShowSamplingAreas">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
+       <layout class="QGridLayout" name="gridLayout_3">
+        <item row="0" column="0">
+         <widget class="QGroupBox" name="Grp_Normalized">
+          <property name="title">
+           <string>Normalized to Profile Line 1</string>
+          </property>
+          <property name="checkable">
+           <bool>true</bool>
+          </property>
+          <property name="checked">
+           <bool>false</bool>
+          </property>
+          <layout class="QGridLayout" name="gridLayout">
+           <property name="verticalSpacing">
+            <number>12</number>
            </property>
-           <property name="text">
-            <string>Sampling Areas</string>
+           <item row="2" column="0">
+            <widget class="QRadioButton" name="Rdo_By_Segment">
+             <property name="text">
+              <string>By Segment</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QRadioButton" name="Rdo_By_Total_Length">
+             <property name="text">
+              <string>By Total Length</string>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="0" column="1">
+         <widget class="QGroupBox" name="groupBox_3">
+          <property name="title">
+           <string>Area Samplng</string>
+          </property>
+          <layout class="QVBoxLayout" name="verticalLayout_4">
+           <property name="spacing">
+            <number>15</number>
            </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QCheckBox" name="ChkBox_ShowSamplingPoints">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Minimum" vsizetype="Maximum">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
+           <property name="bottomMargin">
+            <number>12</number>
            </property>
-           <property name="text">
-            <string>Sampling Points</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QComboBox" name="ChkBox_Area_Sampling_Element">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </widget>
+           <item>
+            <widget class="QCheckBox" name="ChkBox_ShowSamplingAreas">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="text">
+              <string>Sampling Areas</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="ChkBox_ShowSamplingPoints">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Minimum" vsizetype="Maximum">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="text">
+              <string>Sampling Points</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QComboBox" name="ChkBox_Area_Sampling_Element">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <widget class="QCheckBox" name="ChkBox_pLineNormalize">
+          <property name="text">
+           <string>Normalized to Profile Line 1</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
       </widget>
      </widget>
     </item>
@@ -731,5 +756,38 @@
   </widget>
  </widget>
  <resources/>
- <connections/>
+ <connections>
+  <connection>
+   <sender>Grp_Normalized</sender>
+   <signal>clicked(bool)</signal>
+   <receiver>Rdo_By_Total_Length</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>125</x>
+     <y>194</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>124</x>
+     <y>194</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>Grp_Normalized</sender>
+   <signal>clicked(bool)</signal>
+   <receiver>Rdo_By_Segment</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>125</x>
+     <y>194</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>124</x>
+     <y>213</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
 </ui>

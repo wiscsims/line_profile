@@ -256,7 +256,8 @@ class ProfileLineTool(QgsMapTool):
         self.reset_tielines()
         myColor = [
             QColor(255, 255, 100, 200),  # Profile Line 1
-            QColor(100, 255, 255, 200)  # Profile Line 2
+            QColor(100, 255, 255, 200),  # Profile Line 2
+            QColor(255, 100, 255, 200)  # Profile Line 3
         ]
         for pIndex in range(len(pts)):
             color = myColor[pIndex]
