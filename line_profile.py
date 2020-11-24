@@ -58,6 +58,7 @@ from .tools.plottingTool import PlottingTool
 from .tools.profileLineTool import ProfileLineTool
 from .tools.dataProcessingTool import DataProcessingTool
 from .tools.myTableViewModel import MyTableViewModel
+from .tools.profilePlotConverter import ProfiilePlotConverter
 
 # Import UI (dock and dialogs)
 from .ui.dockWidget import DockWidget
@@ -131,6 +132,7 @@ class LineProfile:
         self.profileLineTool = ProfileLineTool(self.canvas)
         self.plotTool = PlottingTool(self.model, self.drawTracer)
         self.dpTool = DataProcessingTool(self.n_profile_lines)
+        self.ppc = ProfiilePlotConverter()
 
     # noinspection PyMethodMayBeStatic
 
@@ -360,7 +362,7 @@ class LineProfile:
             pass
 
     def connectTools(self):
-        self.profileLineTool.proflineterminated.connect(self.updatePlot)
+        self.profileLineTool.proflineterminated.connect(self.handle_terminate_profile_line)
         self.profileLineTool.doubleClicked.connect(self.resetPlot)
 
     def disconnectTools(self):
@@ -380,19 +382,6 @@ class LineProfile:
             pass
 
         self.update_area_sampling_list()
-
-    def update_area_sampling_list(self):
-        my_cbx = self.dock.ChkBox_Area_Sampling_Element
-        my_cbx.clear()
-        for r in range(self.model.rowCount()):
-            element_name = self.model.getDataName(r)
-            layer_id = self.model.getLayerId(r)
-            layer_type = self.model.getLayerTypeName(r)
-            if layer_type == 'Vector':
-                continue
-            raster_layer_id = self.get_raster_layer_id(
-                r, layer_id, element_name)
-            my_cbx.addItem(element_name, raster_layer_id)
 
     def connectDock(self):
 
@@ -577,6 +566,10 @@ class LineProfile:
             pp = profPoints[pIndex]
             self.updateProfileLineData(pIndex, pp)
             self.pLines.append(self.dpTool.getProfileLines(pp))
+
+        if len(self.pLines) == 2:
+            if len(self.pLines[0]) == len(self.pLines[1]):
+                self.ppc.set_pLines(self.pLines, 0)
 
         if reduce(lambda x, y: x + len(y), self.pLines, 0) == 0:
             return False
@@ -939,37 +932,51 @@ class LineProfile:
 
     def draw_trace_marker(self, event, normFactor):
         # self.profileLineTool.reset_tracing_marker()
-        if self.is_trace_marker_available(event):
-            p_index = self.profileLineTool.profile_line_index
-            # show marker
-            self.profileLineTool.show_tracking_marker()
-
-            # move marker to the position
-            x = event.xdata / normFactor[p_index]
-            if x > self.dpTool.sumD(self.pLines[p_index]):
-                return
-            pt = self.dpTool.getCurrentCoordinates(self.pLines[p_index], x)
-            self.profileLineTool.update_tracking_marker(pt)
-        else:
+        if not self.is_trace_marker_available(event):
             # hide marker
             self.profileLineTool.hide_tracking_marker()
+            return
+
+        p_index = self.profileLineTool.profile_line_index
+        # show marker
+        self.profileLineTool.show_tracking_marker()
+
+        # move marker to the position
+
+        # normalized by segment
+        if self.is_normalized_by_segment():
+            x = self.ppc.plotX_to_profileX(event.xdata, p_index)
+        else:
+            x = event.xdata / normFactor[p_index]
+
+        if x > self.dpTool.sumD(self.pLines[p_index]):
+            return
+        pt = self.dpTool.getCurrentCoordinates(self.pLines[p_index], x)
+        self.profileLineTool.update_tracking_marker(pt)
+
+    def is_normalized_by_segment(self):
+        return self.dock.Grp_Normalized.isChecked() and self.dock.Rdo_By_Segment.isChecked()
 
     def drawTracer(self, event, normFactor):
         self.draw_trace_marker(event, normFactor)
         return
         # self.profileLineTool.resetRasterPoints()
-        self.profileLineTool.reset_tracing_marker()
-        pIndex = self.dock.CmbBox_ProfileLine.currentIndex()
-        if self.check_tracer_condition(event, pIndex, normFactor):
-            return
+        # self.profileLineTool.reset_tracing_marker()
+        # pIndex = self.dock.CmbBox_ProfileLine.currentIndex()
+        # if self.check_tracer_condition(event, pIndex, normFactor):
+        #     return
+        #
+        # x = event.xdata / normFactor[pIndex]
+        #
+        # if self.dpTool.sumD(self.pLines[pIndex]) < x:
+        #     return
+        #
+        # pt = self.dpTool.getCurrentCoordinates(self.pLines[pIndex], x)
+        # self.profileLineTool.add_tracing_marker(pt)
 
-        x = event.xdata / normFactor[pIndex]
-
-        if self.dpTool.sumD(self.pLines[pIndex]) < x:
-            return
-
-        pt = self.dpTool.getCurrentCoordinates(self.pLines[pIndex], x)
-        self.profileLineTool.add_tracing_marker(pt)
+    def handle_terminate_profile_line(self):
+        # update profile-plot converter
+        self.updatePlot()
 
     def exportProfileData(self):
         fileName, _ = QFileDialog.getSaveFileName(self.iface.mainWindow(),
@@ -1020,6 +1027,19 @@ class LineProfile:
     def getLayerById(self, lid):
         l = [layer for layer in self.canvas.layers() if lid == layer.id()]
         return l[0] if len(l) == 1 else False
+
+    def update_area_sampling_list(self):
+        my_cbx = self.dock.ChkBox_Area_Sampling_Element
+        my_cbx.clear()
+        for r in range(self.model.rowCount()):
+            element_name = self.model.getDataName(r)
+            layer_id = self.model.getLayerId(r)
+            layer_type = self.model.getLayerTypeName(r)
+            if layer_type == 'Vector':
+                continue
+            raster_layer_id = self.get_raster_layer_id(
+                r, layer_id, element_name)
+            my_cbx.addItem(element_name, raster_layer_id)
 
     def sanitizePath(self, path):
         path = os.path.expanduser(path)
