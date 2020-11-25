@@ -118,22 +118,29 @@ class PlottingTool:
         pLineNorm = opt['pLineNormalized']
         pLineNorm_by_segment = opt['pLineNormalizedBySegment']
         pLineNorm_base_index = 0
+        ppc = opt['profilePlotConverter']
+
+        dps = 'distance_pixel_sized'
 
         """ calculate normalization factors """
         normFactor = []
         if pLineNorm and pLineNorm_by_segment:
             for pIndex in range(len(pLines)):
                 """ scan profile line """
-                # normFactor[
-                #   ['norm factor for pLines[0] seg 0', 'norm factor for pLines[0] seg 1', ...],
-                #   ['norm factor for pLines[1] seg 0', 'norm factor for pLines[1] seg 1', ...],
-                #   [...]
-                # ]
+
+                """ normFactor[
+                  ['norm factor for pLines[0] seg 0', 'norm factor for pLines[0] seg 1', ...],
+                  ['norm factor for pLines[1] seg 0', 'norm factor for pLines[1] seg 1', ...],
+                  [...]
+                ]
+
+                """
+
                 """ scan segment """
                 normFactorBySegment = []
                 for i, seg in enumerate(pLines[pLineNorm_base_index]):
                     normFactorBySegment.append(
-                        seg['distance_pixel_sized'] / pLines[pIndex][i]['distance_pixel_sized'])
+                        seg[dps] / pLines[pIndex][i][dps])
                 normFactor.append(normFactorBySegment)
 
         elif pLineNorm:
@@ -194,24 +201,13 @@ class PlottingTool:
                 """
 
                 """ normalization """
-                # normalizing data (x values) by base profile line (default - currently fixed: Profile Line 1)
+                # normalizing data (x values) by base profile line
+                # (default - currently fixed: Profile Line 1)
                 if pLineNorm:
                     tmp = []
                     if pLineNorm_by_segment:
                         # apply segmment specific normilization factor to x values
-                        seg_index = 0
-                        seg_d = pLines[pIndex][seg_index]['distance_pixel_sized']
-                        x_offset = 0  # x value of start.x for current segment
-                        x_offset_scaled = 0
-                        for x in dd['data'][0]:
-                            if seg_d < x:
-                                x_offset += pLines[pIndex][seg_index]['distance_pixel_sized']
-                                x_offset_scaled += pLines[pIndex][seg_index]['distance_pixel_sized'] * \
-                                    normFactor[pIndex][seg_index]
-                                seg_index += 1
-                                seg_d += pLines[pIndex][seg_index]['distance_pixel_sized']
-                            tmp.append((x - x_offset) *
-                                       normFactor[pIndex][seg_index] + x_offset_scaled)
+                        tmp = [ppc.profileX_to_plotX(x, pIndex) for x in dd['data'][0]]
                     else:
                         # apply normalizatin factor of each profile line
                         tmp = [x * normFactor[pIndex] for x in dd['data'][0]]
@@ -274,9 +270,9 @@ class PlottingTool:
                 # scan segments
                 if pLineNorm_by_segment:
                     # same as pLineNorm base profile line
-                    d += pLines[pLineNorm_base_index][i]['distance_pixel_sized']
+                    d += pLines[pLineNorm_base_index][i][dps]
                 else:
-                    d += pLines[pIndex][i]['distance_pixel_sized'] * normFactor[pIndex]
+                    d += pLines[pIndex][i][dps] * normFactor[pIndex]
                 self.host.axvline(x=d, c=plColor[pIndex], ls=u':', lw=1, alpha=0.3)
 
         # set x-axis start with 0, end with endpoint of profile line

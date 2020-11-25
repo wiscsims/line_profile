@@ -567,10 +567,6 @@ class LineProfile:
             self.updateProfileLineData(pIndex, pp)
             self.pLines.append(self.dpTool.getProfileLines(pp))
 
-        if len(self.pLines) == 2:
-            if len(self.pLines[0]) == len(self.pLines[1]):
-                self.ppc.set_pLines(self.pLines, 0)
-
         if reduce(lambda x, y: x + len(y), self.pLines, 0) == 0:
             return False
 
@@ -653,17 +649,20 @@ class LineProfile:
                     # Show message (need to have same number of segment)
                     self.show_error_message_on_normaliziation('Need same number of segments.')
                     return
+            self.ppc.set_pLines(self.pLines, 0)
 
         if normalized:
-            for i in range(len(self.pLines)):
+            for i in range(self.n_profile_lines):
                 if len(self.pLines[i]) == 0:
                     # Show message (need to have same number of segment)
                     self.show_error_message_on_normaliziation('At least two profile line needed.')
                     return
 
         """ draw plot """
-        self.plotTool.drawPlot3(self.pLines, self.plotData, pLineNormalized=normalized,
-                                pLineNormalizedBySegment=normalized_by_segment)
+        self.plotTool.drawPlot3(self.pLines, self.plotData,
+                                pLineNormalized=normalized,
+                                pLineNormalizedBySegment=normalized_by_segment,
+                                profilePlotConverter=self.ppc)
 
     def show_error_message_on_normaliziation(self, text):
         msg = QMessageBox()
