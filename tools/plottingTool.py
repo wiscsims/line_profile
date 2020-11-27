@@ -268,7 +268,7 @@ class PlottingTool:
             d = 0
             for i in range(len(pLines[pIndex]) - 1):  # avoid last line
                 # scan segments
-                if pLineNorm_by_segment:
+                if pLineNorm and pLineNorm_by_segment:
                     # same as pLineNorm base profile line
                     d += pLines[pLineNorm_base_index][i][dps]
                 else:
