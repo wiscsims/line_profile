@@ -39,6 +39,7 @@ class DockWidget(QDockWidget, FORM_CLASS):
         self.setupUi(self)
         self.initTableView()
         self.connectTable()
+        self.tabWidget_2.setCurrentIndex(0)
 
     def connectTable(self):
         self.Btn_Add.clicked.connect(self.selectElement)
