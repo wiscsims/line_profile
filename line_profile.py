@@ -640,23 +640,8 @@ class LineProfile:
 
         normalized = self.dock.Grp_Normalized.isChecked()
         normalized_by_segment = self.dock.Rdo_By_Segment.isChecked()
-
-        """ check profile lines whether normalizable or not """
-        if normalized and normalized_by_segment:
-            n_seg = len(self.pLines[0])
-            for i in range(1, len(self.pLines)):
-                if n_seg != len(self.pLines[i]):
-                    # Show message (need to have same number of segment)
-                    self.show_error_message_on_normaliziation('Need same number of segments.')
-                    return
-            self.ppc.set_pLines(self.pLines, 0)
-
-        if normalized:
-            for i in range(self.n_profile_lines):
-                if len(self.pLines[i]) == 0:
-                    # Show message (need to have same number of segment)
-                    self.show_error_message_on_normaliziation('At least two profile line needed.')
-                    return
+        if not self.handle_normalization(normalized, normalized_by_segment):
+            return
 
         """ draw plot """
         self.plotTool.drawPlot3(self.pLines, self.plotData,
@@ -745,6 +730,25 @@ class LineProfile:
             resetAllFlag = True
         self.plotTool.resetPlot(resetAllFlag)
         self.updatePlot()
+
+    def handle_normalization(self, normalized, normalized_by_segment):
+        """ check profile lines whether normalizable or not """
+        if normalized and normalized_by_segment:
+            n_seg = len(self.pLines[0])
+            for i in range(1, len(self.pLines)):
+                if n_seg != len(self.pLines[i]):
+                    # Show message (need to have same number of segment)
+                    self.show_error_message_on_normaliziation('Need same number of segments.')
+                    return False
+            self.ppc.set_pLines(self.pLines, 0)
+
+        if normalized:
+            for i in range(self.n_profile_lines):
+                if len(self.pLines[i]) == 0:
+                    # Show message (need to have same number of segment)
+                    self.show_error_message_on_normaliziation('At least two profile line needed.')
+                    return False
+        return True
 
     def openExportProfileLineDialog(self):
         self.expPLDialog = LPExportDialog()
