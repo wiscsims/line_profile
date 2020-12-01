@@ -405,7 +405,6 @@ class LineProfile:
         self.dock.ChkBox_ShowSamplingAreas.stateChanged.connect(self.handle_sampling_area_display)
         self.dock.Btn_ExportProfileData.clicked.connect(self.exportProfileData)
         self.dock.CmbBox_ProfileLine.currentIndexChanged.connect(self.changeCurrentProfileLine)
-        self.dock.ChkBox_pLineNormalize.stateChanged.connect(self.updatePlot)
 
         self.dock.Btn_ResetProfileLine.clicked.connect(self.clear_profile_line)
 
@@ -438,7 +437,6 @@ class LineProfile:
             self.dock.CmbBox_ProfileLine.currentIndexChanged.disconnect(
                 self.changeCurrentProfileLine)
             self.dock.Btn_ResetProfileLine.clicked.disconnect(self.addProfileLine)
-            self.dock.ChkBox_pLineNormalize.stateChanged.disconnect(self.updatePlot)
 
             self.dock.resizeEvent = None
 
