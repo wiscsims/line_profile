@@ -111,7 +111,7 @@ class PlottingTool:
         AxisPadding = 0.1
 
         dataN = 0
-        linestyles = ['-', ':', '--', ':']
+        linestyles = ['-', '--', '-.', ':']
         linewidth = [1, 1.5, 1.8, 2]
         symbolAlpha = [1, 0.6, 0.3]
 
