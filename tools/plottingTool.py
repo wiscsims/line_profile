@@ -161,6 +161,7 @@ class PlottingTool:
                 longestIndex = d
 
         hostPlotFlag = True
+        myPlot = []
         for d in data[longestIndex]:
             dataN += 1
             if hostPlotFlag:
@@ -180,6 +181,7 @@ class PlottingTool:
                 self.par[j].axis["right"].toggle(all=True)
                 myAx = self.par[j]
 
+            tmpPlot = []
             for pIndex in range(len(data)):  # loop for multiple profile lines
                 if not len(data[pIndex]):
                     continue
@@ -222,12 +224,6 @@ class PlottingTool:
 
                 alpha = 0.1 if d['layer_type'] and d['configs']['movingAverage'] else symbolAlpha[pIndex]
                 color = ColorConverter().to_rgba(d['color_org'], alpha=alpha)
-                leftA, = myAx.plot(dd['data'][0], dd['data'][1],
-                                   label=dd['label'], color=color,
-                                   linestyle=linestyles[pIndex],
-                                   linewidth=linewidth[pIndex],
-                                   marker=u'o',
-                                   markersize=self.getMarkerSize(10, len(dd['data'][0])))
                 marker = d['configs']['plotOptions']['symbol']
                 marker_size = d['configs']['plotOptions']['symbolSize']
                 line_type = d['configs']['plotOptions']['lineType']
@@ -239,6 +235,9 @@ class PlottingTool:
                                          marker=marker,
                                          # markersize=self.getMarkerSize(10, len(dd['data'][0])))
                                          markersize=marker_size)
+                tmpPlot.append(my_tmp_Plot)
+
+            myPlot.append(tmpPlot)
             #
             # Axes styling
             #
@@ -275,6 +274,9 @@ class PlottingTool:
                 myAx.set_ylim(myRange[2] - myMargin, myRange[3] + myMargin)
 
             hostPlotFlag = False
+
+            if len(myPlot[0]) > 1:
+                myAx.legend(myPlot[0], ['Profile 1', 'Profile 2'], ncol=2, fontsize=7)
 
         """ handle draw segment separators in the plot """
         # draw vertical line for each vertices of profile line(s)
