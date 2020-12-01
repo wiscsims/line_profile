@@ -5,7 +5,8 @@ from qgis.PyQt.QtWidgets import (
     QDockWidget,
     QMessageBox,
     QInputDialog,
-    QColorDialog
+    QColorDialog,
+    QHeaderView
 )
 from qgis.PyQt.QtCore import (
     Qt,
@@ -40,6 +41,8 @@ class DockWidget(QDockWidget, FORM_CLASS):
         self.initTableView()
         self.connectTable()
         self.tabWidget_2.setCurrentIndex(0)
+        self.myFrame_2.hide()
+        self.widget_3.show()
 
     def connectTable(self):
         self.Btn_Add.clicked.connect(self.selectElement)
@@ -68,40 +71,24 @@ class DockWidget(QDockWidget, FORM_CLASS):
 
     # tableview
     def initTableView(self):
-        self.myTable.setModel(self.model)
+        myT = self.myTable
+        myT.setModel(self.model)
         hiddenColumns = ['layerId', 'layerType']
-        [self.myTable.setColumnHidden(self.model.getColumnIndex(c), True)
-            for c in hiddenColumns]
+        [myT.setColumnHidden(self.model.getColumnIndex(c), True) for c in hiddenColumns]
+        # table width = 250
         columnSettings = {
             'state': {'width': 25},
             'color': {'width': 6},
-            'layer': {'width': 85},
-            'data': {'width': 90}
+            'layer': {'width': 95},
+            'data': {'width': 100},
+            'config': {'width': 24},
         }
-        [self.myTable.setColumnWidth(self.model.getColumnIndex(c), v['width'])
-            for c, v in iter(columnSettings.items())]
-        self.myTable.horizontalHeader().setStretchLastSection(True)
-        self.autoAdd()
-        self.model.updateFlag = True
 
-    def autoAdd(self):
-        layers = self.iface.mapCanvas().layers()
-        if len(layers) == 0:
-            return
-        rN = self.model.rowCount()
-        if rN:
-            self.model.removeRows(0, rN)
-        if layers[0].name() == u'merged':
-            layers[0].setDrawingStyle('PalettedColor')
-            self.model.addElement(layers[0], u"Band 1")
-            self.iface.mapCanvas().setRotation(-90)
-        elif layers[0].name() == u'your_data':
-            self.model.addElement(layers[2], u"Band 1")
-            self.model.addElement(layers[0], u"d18_VSMOW")
-            self.model.addElement(layers[1], u"value")
-        else:
-            pass
-        self.iface.mapCanvas().zoomToFullExtent()
+        for c, v in iter(columnSettings.items()):
+            c_index = self.model.getColumnIndex(c)
+            myT.setColumnWidth(c_index, v['width'])
+            myT.horizontalHeader().setSectionResizeMode(c_index, QHeaderView.Fixed)
+        self.model.updateFlag = True
 
     def showSelectDialog(self, layer, row=-1):
         myList = []
