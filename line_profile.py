@@ -405,7 +405,7 @@ class LineProfile:
         self.dock.CmbBox_ProfileLine.currentIndexChanged.connect(self.changeCurrentProfileLine)
         self.dock.ChkBox_pLineNormalize.stateChanged.connect(self.updatePlot)
 
-        self.dock.Btn_AddProfileLine.clicked.connect(self.clear_profile_line)
+        self.dock.Btn_ResetProfileLine.clicked.connect(self.clear_profile_line)
 
         self.dock.Spn_PixelSize.valueChanged.connect(self.update_pixel_size)
 
@@ -435,7 +435,7 @@ class LineProfile:
             self.dock.Btn_ExportProfileData.clicked.disconnect(self.exportProfileData)
             self.dock.CmbBox_ProfileLine.currentIndexChanged.disconnect(
                 self.changeCurrentProfileLine)
-            self.dock.Btn_AddProfileLine.clicked.disconnect(self.addProfileLine)
+            self.dock.Btn_ResetProfileLine.clicked.disconnect(self.addProfileLine)
             self.dock.ChkBox_pLineNormalize.stateChanged.disconnect(self.updatePlot)
 
             self.dock.resizeEvent = None
@@ -546,12 +546,14 @@ class LineProfile:
         self.pLines = []
 
         if not self.model.updateFlag:
+            self.switch_plot_logo(False)
             return
 
         if self.canvas.layerCount() == 0 or self.model.rowCount() == 0:
             self.profileLineTool.reset_all_profile()
             # self.profileLineTool.resetProfileLine()
             self.plotTool.resetPlot(1)
+            self.switch_plot_logo(False)
             return
 
         profPoints = self.profileLineTool.get_all_profile_points()
@@ -560,6 +562,7 @@ class LineProfile:
         if not self.is_profileline_available(profPoints):
             # reset plot
             self.plotTool.resetPlot(clearAll=True)
+            self.switch_plot_logo(False)
             return
 
         for pIndex in range(len(profPoints)):
@@ -568,7 +571,10 @@ class LineProfile:
             self.pLines.append(self.dpTool.getProfileLines(pp))
 
         if reduce(lambda x, y: x + len(y), self.pLines, 0) == 0:
+            self.switch_plot_logo(False)
             return False
+
+        self.switch_plot_logo(True)
 
         # initialize tie lines
         self.dpTool.initTieLines()
