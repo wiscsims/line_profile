@@ -124,8 +124,8 @@ class LineProfile:
         self.timer_pixel_size_spin_box = QTimer()
         self.timer_pixel_size_spin_box.setSingleShot(True)
 
-        self.timer_widget_resize = QTimer()
-        self.timer_widget_resize.setSingleShot(True)
+        self.timer_resize_widget = QTimer()
+        self.timer_resize_widget.setSingleShot(True)
 
         self.n_profile_lines = 2
         self.pLines = []
@@ -424,7 +424,7 @@ class LineProfile:
         self.timer.timeout.connect(self.adjustTableColumnWidth)
 
         self.timer_pixel_size_spin_box.timeout.connect(self.updatePlot)
-        self.timer_widget_resize.timeout.connect(self.updatePlot)
+        self.timer_resize_widget.timeout.connect(self.updatePlot)
 
     def disconnectDock(self):
         try:
@@ -513,7 +513,7 @@ class LineProfile:
             self.plotTool.savePlot(fileName)
 
     def windowResizeEvent(self):
-        self.timer_widget_resize.start(500)
+        self.timer_resize_widget.start(500)
 
     def windowResizeEventTimeOut(self):
         if self.windowResizeState:
