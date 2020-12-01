@@ -103,8 +103,6 @@ class LineProfile:
         self.toolbar = self.iface.addToolBar(u'LineProfile')
         self.toolbar.setObjectName(u'LineProfile')
 
-        # print "** INITIALIZING LineProfile"
-
         self.pluginIsActive = False
         self.dockwidget = None
         self.DockWidget = None
@@ -242,7 +240,6 @@ class LineProfile:
     def onClosePlugin(self):
         """Cleanup necessary items here when plugin dockwidget is closed"""
 
-        # print "** CLOSING LineProfile"
         # disconnects
         # self.dockwidget.closingPlugin.disconnect(self.onClosePlugin)
         self.dock.closingPlugin.disconnect(self.onClosePlugin)
@@ -258,8 +255,6 @@ class LineProfile:
 
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
-
-        # print "** UNLOAD LineProfile"
 
         self.pluginIsActive = False
 
@@ -585,7 +580,7 @@ class LineProfile:
 
         # initialize tie lines
         self.dpTool.initTieLines()
-        # self.profLineTool.resetTieLies()
+        [self.profileLineTool.reset_tielines(pIndex) for pIndex in range(self.n_profile_lines)]
 
         # reset sampling ranges
         # self.profileLineTool.resetSamplingRange()

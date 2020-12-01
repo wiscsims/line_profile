@@ -9,7 +9,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1680</width>
+    <width>995</width>
     <height>276</height>
    </rect>
   </property>
@@ -69,7 +69,7 @@
        </size>
       </property>
       <property name="currentIndex">
-       <number>2</number>
+       <number>0</number>
       </property>
       <widget class="QWidget" name="Plot">
        <attribute name="title">
@@ -136,8 +136,7 @@
               </font>
              </property>
              <property name="styleSheet">
-              <string notr="true">color: white;
-background-color: #999;</string>
+              <string notr="true">color: rgba(200, 200, 200, 70);</string>
              </property>
              <property name="frameShape">
               <enum>QFrame::NoFrame</enum>
