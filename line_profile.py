@@ -251,7 +251,37 @@ class LineProfile:
         # when closing the docked window:
         # self.dockwidget = None
 
-        self.pluginIsActive = False
+        try:
+            # disconnecting shold be done first
+            # otherwise, mapToolChanged event happens again
+            self.canvas.mapToolSet.disconnect(self.mapToolChanged)
+            self.canvas.unsetMapTool(self.profileLineTool)
+
+            """deactivate plugin"""
+
+            # hide profile line rubberbands
+            self.profileLineTool.hide_profile_line()
+            # self.profileLineTool.hideProfileLine()
+
+            # deactivate plugin button
+            self.line_profile_action.setChecked(False)
+
+            # deactivate dock widget
+            self.dock.setEnabled(False)
+
+            self.dock = None
+
+            # set plugin state to deactivated
+            self.pluginIsActive = False
+        except Exception:
+            pass
+
+        try:
+            pass
+            # self.profileLineTool.resetProfileLine(all=True)
+            # self.profileLineTool.reset_all_profile()
+        except AttributeError:
+            print(str(AttributeError))
 
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
@@ -291,6 +321,7 @@ class LineProfile:
             self.dock = DockWidget(self.iface.mainWindow(), self.iface, self.model)
             self.dock.showDockWidget()
             self.dockOpened = True
+            self.dock.setEnabled(True)
             self.dock.closingPlugin.connect(self.onClosePlugin)
 
             # Create plot area and add to the widget
