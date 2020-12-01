@@ -228,6 +228,17 @@ class PlottingTool:
                                    linewidth=linewidth[pIndex],
                                    marker=u'o',
                                    markersize=self.getMarkerSize(10, len(dd['data'][0])))
+                marker = d['configs']['plotOptions']['symbol']
+                marker_size = d['configs']['plotOptions']['symbolSize']
+                line_type = d['configs']['plotOptions']['lineType']
+                line_width = d['configs']['plotOptions']['lineWidth']
+                my_tmp_Plot, = myAx.plot(dd['data'][0], dd['data'][1],
+                                         label=dd['label'], color=color,
+                                         linestyle=linestyles[pIndex],
+                                         linewidth=line_width,
+                                         marker=marker,
+                                         # markersize=self.getMarkerSize(10, len(dd['data'][0])))
+                                         markersize=marker_size)
             #
             # Axes styling
             #

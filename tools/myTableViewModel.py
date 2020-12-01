@@ -69,7 +69,13 @@ class MyTableViewModel(QStandardItemModel):
             'fullRes': Qt.Unchecked,              # int
             'areaSampling': Qt.Unchecked,         # int
             'areaSamplingWidth': self.areaSampleWidthDafault,
-            'plotOptions': {},
+            'plotOptions': {
+                'label': element,
+                'symbol': 'o',
+                'symbolSize': 2 if layer.type() == 1 else 5,
+                'lineType': '-',
+                'lineWidth': self.lineWidthDefault,
+            }
         }
         newRow[self.c['config']].setData(config)
         self.appendRow(newRow)
@@ -177,4 +183,24 @@ class MyTableViewModel(QStandardItemModel):
     def setPlotLabel(self, row, label):
         config = self.getConfigs(row)
         config['plotOptions']['label'] = label
+        self.item(row, self.c['config']).setData(config)
+
+    def setPlotSymbol(self, row, symbol):
+        config = self.getConfigs(row)
+        config['plotOptions']['symbol'] = symbol
+        self.item(row, self.c['config']).setData(config)
+
+    def setPlotSymbolSize(self, row, size):
+        config = self.getConfigs(row)
+        config['plotOptions']['symbolSize'] = size
+        self.item(row, self.c['config']).setData(config)
+
+    def setPlotLineType(self, row, linetype):
+        config = self.getConfigs(row)
+        config['plotOptions']['lineType'] = linetype
+        self.item(row, self.c['config']).setData(config)
+
+    def setPlotLineWidth(self, row, linewidth):
+        config = self.getConfigs(row)
+        config['plotOptions']['lineWidth'] = linewidth
         self.item(row, self.c['config']).setData(config)

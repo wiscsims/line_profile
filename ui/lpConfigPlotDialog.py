@@ -47,6 +47,10 @@ class LPConfigPlotDialog(QDialog, FORM_CLASS):
         self.timer_plot_label.setSingleShot(True)
         self.timer_plot_label.timeout.connect(self.updatePlotLabel)
 
+        self.CMB_Symbol.currentTextChanged.connect(self.updatePlotSymbol)
+        self.SPN_SymbolSize.valueChanged.connect(self.updatePlotSymbolSize)
+        self.SPN_LineWidth.valueChanged.connect(self.updatePlotLineWidth)
+
     def setBGColor(self, target, color):
         target.setStyleSheet("background-color: %s" % color.name())
 
@@ -109,6 +113,15 @@ class LPConfigPlotDialog(QDialog, FORM_CLASS):
         else:
             label = dataName
         self.TXT_PlotLabel.setText(label)
+
+        # set plot symbol combobox
+        self.setPlotSymbol()
+
+        # set plot symbol size
+        self.setPlotSymbolSize()
+
+        # set plot line size
+        self.setPlotLineTypeWidth()
 
         # set display state
         self.GRP_Main.setChecked(self.model.getCheckState(r))
@@ -174,6 +187,42 @@ class LPConfigPlotDialog(QDialog, FORM_CLASS):
             return False
 
         return cmbBox.setCurrentIndex(cmbBox.findText(currentData))
+
+    def setPlotSymbol(self):
+        symbols = ['.', ',', 'o', 'v', '^', '<', '>',
+                   '1', '2', '3', '4', '8', 's', 'p', 'P', '*',
+                   'h', 'H', '+', 'x', 'X', 'D', 'd', '|', '_']
+        self.CMB_Symbol.addItems(symbols)
+        symbol = self.configs['plotOptions']['symbol']
+        self.CMB_Symbol.setCurrentIndex(symbols.index(symbol))
+
+    def updatePlotSymbol(self, symbol):
+        self.model.setPlotSymbol(self.row, symbol)
+
+    def setPlotSymbolSize(self):
+        symbol_size = self.configs['plotOptions']['symbolSize']
+        self.SPN_SymbolSize.setValue(symbol_size)
+
+    def updatePlotSymbolSize(self, symbol_size):
+        self.model.setPlotSymbolSize(self.row, symbol_size)
+
+    def setPlotLineTypeWidth(self):
+        # Line Type
+        linetypes = ['-']
+        self.CMB_LineType.addItems(linetypes)
+        # set combobox currentIndex according to saved value
+        linetype = self.configs['plotOptions']['lineType']
+        self.CMB_LineType.setCurrentIndex(linetypes.index(linetype))
+
+        # Line Width
+        line_width = self.configs['plotOptions']['lineWidth']
+        self.SPN_LineWidth.setValue(line_width)
+
+    def updatePlotLineType(self, linetype):
+        self.model.setPlotLineType(self.row, linetype)
+
+    def updatePlotLineWidth(self, linewidth):
+        self.model.setPlotLineWidth(self.row, linewidth)
 
     def removeData(self):
         msgBox = QMessageBox()
