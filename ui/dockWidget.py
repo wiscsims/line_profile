@@ -73,6 +73,7 @@ class DockWidget(QDockWidget, FORM_CLASS):
     def initTableView(self):
         myT = self.myTable
         myT.setModel(self.model)
+        myT.horizontalHeader().setMinimumSectionSize(6)
         hiddenColumns = ['layerId', 'layerType']
         [myT.setColumnHidden(self.model.getColumnIndex(c), True) for c in hiddenColumns]
         # table width = 250

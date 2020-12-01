@@ -117,8 +117,6 @@ class LineProfile:
 
         self.model = MyTableViewModel()
 
-        self.timer = QTimer()
-
         self.timer_pixel_size_spin_box = QTimer()
         self.timer_pixel_size_spin_box.setSingleShot(True)
 
@@ -338,18 +336,11 @@ class LineProfile:
     def refreshProfileLines(self):
         self.profileLineTool.show_profile_line()
 
-    def adjustTableColumnWidth(self):
-        self.timer.stop()
-        try:
-            w = 68 if self.dock.myTable.verticalScrollBar().isVisible() else 85
-            self.dock.myTable.setColumnWidth(self.model.getColumnIndex('layer'), w)
-        except Exception:
-            pass
-
     def init_map_tool(self):
 
         self.prev_tool = self.canvas.mapTool()
         self.line_profile_action.setChecked(True)
+
         self.dock.setEnabled(True)
 
         # set canvas maptool to profileline tool
@@ -359,7 +350,6 @@ class LineProfile:
         self.canvas.mapToolSet.connect(self.mapToolChanged)
 
     def mapToolChanged(self, current_maptool, old_maptool):
-        # print('mapToolChanged')
         # changed to LineProfileTool
         if re.search(r'LineProfileTool', str(current_maptool)):
             self.dock.setEnabled(True)
@@ -401,14 +391,7 @@ class LineProfile:
             pass
 
     def myConnect(self):
-        self.timer.start(50)
         self.updatePlot()
-        try:
-            w = 74 if self.dock.myTable.verticalScrollBar().isVisible() else 91
-            self.dock.myTable.setColumnWidth(self.model.getColumnIndex('layer'), w)
-        except Exception:
-            pass
-
         self.update_area_sampling_list()
 
     def connectDock(self):
@@ -446,8 +429,6 @@ class LineProfile:
         self.model.rowsRemoved.connect(self.myConnect)
 
         # timers
-        self.timer.timeout.connect(self.adjustTableColumnWidth)
-
         self.timer_pixel_size_spin_box.timeout.connect(self.updatePlot)
         self.timer_resize_widget.timeout.connect(self.updatePlot)
 
@@ -470,7 +451,6 @@ class LineProfile:
             self.model.itemChanged.disconnect(self.myConnect)
             self.model.rowsInserted.disconnect(self.myConnect)
             self.model.rowsRemoved.disconnect(self.myConnect)
-            self.timer.timeout.disconnect(self.adjustTableColumnWidth)
 
         except Exception:
             pass
