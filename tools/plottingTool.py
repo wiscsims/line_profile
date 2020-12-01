@@ -10,7 +10,7 @@ import numpy as np
 
 class PlottingTool:
 
-    def __init__(self, model, tracer):
+    def __init__(self, model, tracker):
         self.fig = None
         self.host = None
         self.par = []
@@ -18,7 +18,7 @@ class PlottingTool:
         self.model = model
         self.mcv = None
         self.cid = None
-        self.tracer = tracer
+        self.tracker = tracker
 
     def getPlotWidget(self):
         bgColor = u'#F9F9F9'
@@ -233,7 +233,11 @@ class PlottingTool:
             #
 
             # common setting
-            myAx.set_ylabel(d['label'])
+            if 'label' in d['configs']['plotOptions'] and d['configs']['plotOptions']['label'] != "":
+                plot_label = d['configs']['plotOptions']['label']
+            else:
+                plot_label = d['label']
+            myAx.set_ylabel(plot_label)
             myAx.minorticks_on()
 
             if hostPlotFlag:
@@ -248,7 +252,7 @@ class PlottingTool:
 
                 # add event listener for marker
                 self.cid = self.mcv.mpl_connect(
-                    'motion_notify_event', lambda event: self.tracer(event, normFactor))
+                    'motion_notify_event', lambda event: self.tracker(event, normFactor))
             else:  # parasite axis (right side)
                 myAx.axis["right"].major_ticklabels.set_fontsize(8)
                 myAx.axis["right"].label.set_fontsize(10)

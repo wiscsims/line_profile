@@ -919,13 +919,6 @@ class LineProfile:
             or event.ydata is None \
             or len(self.pLines) < pIndex \
             or len(normFactor) <= pIndex
-
-        # res5 = not (self.dock.ChkBox_Tracer.isChecked
-        #             and event.xdata
-        #             and event.ydata
-        #             and len(self.pLines) >= pIndex
-        #             and len(normFactor) > pIndex)
-        # print('tracer check:', res, ' - ', res5)
         return res
 
     def handle_toggle_tracking_marker(self, state):

@@ -22,7 +22,7 @@ class MyTableViewModel(QStandardItemModel):
             'data': 3,
             'config': 4,
             'layerId': 5,
-            'layerType': 6,
+            'layerType': 6
         }
         self.n = len(self.c)
         [self.insertColumn(i) for i in range(self.n)]
@@ -69,6 +69,7 @@ class MyTableViewModel(QStandardItemModel):
             'fullRes': Qt.Unchecked,              # int
             'areaSampling': Qt.Unchecked,         # int
             'areaSamplingWidth': self.areaSampleWidthDafault,
+            'plotOptions': {},
         }
         newRow[self.c['config']].setData(config)
         self.appendRow(newRow)
@@ -172,3 +173,8 @@ class MyTableViewModel(QStandardItemModel):
                 myUpdateFlag = True
         if myUpdateFlag:
             self.item(row, self.c['config']).setData(config)
+
+    def setPlotLabel(self, row, label):
+        config = self.getConfigs(row)
+        config['plotOptions']['label'] = label
+        self.item(row, self.c['config']).setData(config)

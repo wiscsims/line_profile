@@ -18,6 +18,7 @@ class LPConfigPlotDialog(QDialog, FORM_CLASS):
         self.index = index
         self.data = {}
         self.row = self.model.itemFromIndex(self.index).row()
+        self.configs = self.model.getConfigs(self.row)
 
         self.plotColor.clicked.connect(self.changePlotColor)
 
@@ -28,22 +29,23 @@ class LPConfigPlotDialog(QDialog, FORM_CLASS):
         self.SPN_MovAveN.valueChanged.connect(self.changeMovAveN)
         self.CKB_FullRes.stateChanged.connect(self.changeFullResState)
         self.SPN_MaxDist.valueChanged.connect(self.handle_changeMaxDist)
-        self.CKB_SamplingState.stateChanged.connect(
-            self.handle_changeAreaSamplingState)
-        self.SPN_SamplingWidth.valueChanged.connect(
-            self.changeAreaSamplingWidth)
+        self.CKB_SamplingState.stateChanged.connect(self.handle_changeAreaSamplingState)
+        self.SPN_SamplingWidth.valueChanged.connect(self.changeAreaSamplingWidth)
         self.BTN_Remove.clicked.connect(self.removeData)
         self.GRP_Main.clicked.connect(self.changeVisibleState)
 
         self.timer_area_sampling_spin_box = QTimer()
         self.timer_area_sampling_spin_box.setSingleShot(True)
-        self.timer_area_sampling_spin_box.timeout.connect(
-            self.changeAreaSamplingState)
+        self.timer_area_sampling_spin_box.timeout.connect(self.changeAreaSamplingState)
 
         self.timer_max_distance_tieline_spin_box = QTimer()
         self.timer_max_distance_tieline_spin_box.setSingleShot(True)
-        self.timer_max_distance_tieline_spin_box.timeout.connect(
-            self.changeMaxDist)
+        self.timer_max_distance_tieline_spin_box.timeout.connect(self.changeMaxDist)
+
+        self.TXT_PlotLabel.textChanged.connect(self.handle_updatePlotLabel)
+        self.timer_plot_label = QTimer()
+        self.timer_plot_label.setSingleShot(True)
+        self.timer_plot_label.timeout.connect(self.updatePlotLabel)
 
     def setBGColor(self, target, color):
         target.setStyleSheet("background-color: %s" % color.name())
@@ -60,6 +62,7 @@ class LPConfigPlotDialog(QDialog, FORM_CLASS):
 
     def changeDataName(self, selectedText):
         self.model.setDataName(self.row, selectedText)
+        self.TXT_PlotLabel.setText(selectedText)
 
     def changeMovAveState(self, state):
         self.model.setConfigs(self.row, {'movingAverage': state})
@@ -94,8 +97,19 @@ class LPConfigPlotDialog(QDialog, FORM_CLASS):
         r = self.row
         # set layer name with layer type
         layerName = self.model.getLayer(r)
-        self.layerName.setText(layerName)
-        self.layerType.setText(self.model.getLayerTypeName(r))
+        layerType = self.model.getLayerTypeName(r)
+
+        # set groupbox title
+        self.GPB_LayerInfo.setTitle(f'{layerName} ({layerType})')
+
+        # set plot label
+        dataName = self.model.getDataName(r)
+        if 'label' in self.configs['plotOptions']:
+            label = self.configs['plotOptions']['label']
+        else:
+            label = dataName
+        self.TXT_PlotLabel.setText(label)
+
         # set display state
         self.GRP_Main.setChecked(self.model.getCheckState(r))
 
@@ -106,18 +120,18 @@ class LPConfigPlotDialog(QDialog, FORM_CLASS):
         self.setComboBoxItems(self.CBX_Data, self.model.getLayerId(r))
 
         # set moving average
-        config = self.model.getConfigs(r)
-        self.CKB_MovAve.setCheckState(config['movingAverage'])
-        self.SPN_MovAveN.setValue(config['movingAverageN'])
+        # config = self.model.getConfigs(r)
+        self.CKB_MovAve.setCheckState(self.configs['movingAverage'])
+        self.SPN_MovAveN.setValue(self.configs['movingAverageN'])
         # set full resolution
-        self.CKB_FullRes.setCheckState(config['fullRes'])
+        self.CKB_FullRes.setCheckState(self.configs['fullRes'])
 
         # set sampling area
-        self.CKB_SamplingState.setCheckState(config['areaSampling'])
-        self.SPN_SamplingWidth.setValue(config['areaSamplingWidth'])
+        self.CKB_SamplingState.setCheckState(self.configs['areaSampling'])
+        self.SPN_SamplingWidth.setValue(self.configs['areaSamplingWidth'])
 
         # set max distance
-        self.SPN_MaxDist.setValue(config['maxDistance'])
+        self.SPN_MaxDist.setValue(self.configs['maxDistance'])
 
         # Vector vs. Raster
         if self.model.getLayerType(r):  # Raster
@@ -137,6 +151,13 @@ class LPConfigPlotDialog(QDialog, FORM_CLASS):
             self.CKB_SamplingState.setEnabled(False)
             self.SPN_SamplingWidth.setEnabled(False)
 
+    def handle_updatePlotLabel(self):
+        self.timer_plot_label.start(1000)
+
+    def updatePlotLabel(self):
+        label = self.TXT_PlotLabel.text()
+        self.model.setPlotLabel(self.row, label)
+
     def setComboBoxItems(self, cmbBox, layerId):
         layers = self.iface.mapCanvas().layers()
         if len(layers) == 0:
@@ -144,12 +165,10 @@ class LPConfigPlotDialog(QDialog, FORM_CLASS):
         layer = [l for l in layers if l.id() == layerId][0]
         currentData = self.model.getDataName(self.row)
         if layer.type() == layer.RasterLayer:  # Raster Layer
-            [cmbBox.addItem('Band ' + str(i + 1))
-                for i in range(layer.bandCount())]
+            [cmbBox.addItem('Band ' + str(i + 1)) for i in range(layer.bandCount())]
         elif layer.type() == layer.VectorLayer:  # Vector Layer
             fields = layer.dataProvider().fields()
-            myList = [f.name()
-                      for f in fields if f.type() == 2 or f.type() == 6]
+            myList = [f.name() for f in fields if f.type() == 2 or f.type() == 6]
             cmbBox.addItems(myList)
         else:
             return False
