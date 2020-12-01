@@ -120,10 +120,12 @@ class LineProfile:
         self.model = MyTableViewModel()
 
         self.timer = QTimer()
-        self.timer2 = QTimer()
 
         self.timer_pixel_size_spin_box = QTimer()
         self.timer_pixel_size_spin_box.setSingleShot(True)
+
+        self.timer_widget_resize = QTimer()
+        self.timer_widget_resize.setSingleShot(True)
 
         self.n_profile_lines = 2
         self.pLines = []
@@ -420,9 +422,9 @@ class LineProfile:
 
         # timers
         self.timer.timeout.connect(self.adjustTableColumnWidth)
-        self.timer2.timeout.connect(self.windowResizeEventTimeOut)
 
         self.timer_pixel_size_spin_box.timeout.connect(self.updatePlot)
+        self.timer_widget_resize.timeout.connect(self.updatePlot)
 
     def disconnectDock(self):
         try:
@@ -448,6 +450,14 @@ class LineProfile:
 
         except Exception:
             pass
+
+    def switch_plot_logo(self, show_plot):
+        if show_plot:
+            self.dock.myFrame_2.show()
+            self.dock.widget_3.hide()
+        else:
+            self.dock.myFrame_2.hide()
+            self.dock.widget_3.show()
 
     def showConfigDialog(self, index):
         self.configPlotDialog = LPConfigPlotDialog(
@@ -503,8 +513,7 @@ class LineProfile:
             self.plotTool.savePlot(fileName)
 
     def windowResizeEvent(self):
-        self.windowResizeState = True
-        # print 'window resize start'
+        self.timer_widget_resize.start(500)
 
     def windowResizeEventTimeOut(self):
         if self.windowResizeState:
