@@ -69,7 +69,7 @@
        </size>
       </property>
       <property name="currentIndex">
-       <number>0</number>
+       <number>2</number>
       </property>
       <widget class="QWidget" name="Plot">
        <attribute name="title">
@@ -530,7 +530,7 @@
            </size>
           </property>
           <property name="title">
-           <string>Export</string>
+           <string>Export:</string>
           </property>
           <layout class="QVBoxLayout" name="verticalLayout">
            <item>
@@ -609,7 +609,7 @@
            </size>
           </property>
           <property name="title">
-           <string>Import</string>
+           <string>Import:</string>
           </property>
           <layout class="QVBoxLayout" name="verticalLayout_3">
            <item>
@@ -655,7 +655,7 @@
         <item>
          <widget class="QLabel" name="label">
           <property name="text">
-           <string>Pixel Size</string>
+           <string>Pixel Size:</string>
           </property>
          </widget>
         </item>
@@ -733,7 +733,7 @@
         <item row="0" column="1">
          <widget class="QGroupBox" name="groupBox_3">
           <property name="title">
-           <string>Area Samplng</string>
+           <string>Area Samplng:</string>
           </property>
           <layout class="QVBoxLayout" name="verticalLayout_4">
            <property name="spacing">
