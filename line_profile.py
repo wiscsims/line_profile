@@ -98,7 +98,7 @@ class LineProfile:
 
         # Declare instance attributes
         self.actions = []
-        self.menu = self.tr(u'&LineProfile')
+        self.menu = self.tr(u"&WiscSIMS")
         # TODO: We are going to let the user set this up in a future iteration
         self.toolbar = self.iface.addToolBar(u'LineProfile')
         self.toolbar.setObjectName(u'LineProfile')
@@ -441,9 +441,8 @@ class LineProfile:
             self.dock.ChkBox_ShowSamplingPoints.stateChanged.disconnect(self.updatePlot)
             self.dock.ChkBox_ShowSamplingAreas.stateChanged.disconnect(self.updatePlot)
             self.dock.Btn_ExportProfileData.clicked.disconnect(self.exportProfileData)
-            self.dock.CmbBox_ProfileLine.currentIndexChanged.disconnect(
-                self.changeCurrentProfileLine)
-            self.dock.Btn_ResetProfileLine.clicked.disconnect(self.addProfileLine)
+            self.dock.CmbBox_ProfileLine.currentIndexChanged.disconnect(self.changeCurrentProfileLine)
+            # self.dock.Btn_ResetProfileLine.clicked.disconnect(self.addProfileLine)
 
             self.dock.resizeEvent = None
 
@@ -1060,3 +1059,4 @@ class LineProfile:
         path = os.path.expanduser(path)
         path = os.path.expandvars(path)
         return os.path.abspath(path)
+
