@@ -22,7 +22,7 @@ class PlottingTool:
 
     def getPlotWidget(self):
         bgColor = u'#F9F9F9'
-        bgColor = u'#E4E4E4'
+        # bgColor = u'#E4E4E4'
         spp = mpl.figure.SubplotParams(left=0, bottom=0,
                                        right=1, top=1,
                                        wspace=0, hspace=0)
