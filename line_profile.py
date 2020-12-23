@@ -441,7 +441,8 @@ class LineProfile:
             self.dock.ChkBox_ShowSamplingPoints.stateChanged.disconnect(self.updatePlot)
             self.dock.ChkBox_ShowSamplingAreas.stateChanged.disconnect(self.updatePlot)
             self.dock.Btn_ExportProfileData.clicked.disconnect(self.exportProfileData)
-            self.dock.CmbBox_ProfileLine.currentIndexChanged.disconnect(self.changeCurrentProfileLine)
+            self.dock.CmbBox_ProfileLine.currentIndexChanged.disconnect(
+                self.changeCurrentProfileLine)
             # self.dock.Btn_ResetProfileLine.clicked.disconnect(self.addProfileLine)
 
             self.dock.resizeEvent = None
@@ -1059,4 +1060,3 @@ class LineProfile:
         path = os.path.expanduser(path)
         path = os.path.expandvars(path)
         return os.path.abspath(path)
-
