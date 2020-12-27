@@ -7,7 +7,7 @@ name=Line Profile
 qgisMinimumVersion=3.0
 description=Create line profiles from attribute table in vector layer and color band of raster layer
 version=3.0.0
-author=Kouki Kitajima (WiscSIMS)
+author=WiscSIMS (Kouki Kitajima)
 email=kitajima@wisc.edu
 
 about=Provide a brief description of the plugin and its purpose.
@@ -23,7 +23,7 @@ hasProcessingProvider=no
 # changelog=
 
 # Tags are comma separated with spaces allowed
-tags=python SIMS lineprofile
+tags=python,SIMS,line profile,ion microprobe,cross section
 
 homepage=https://github.com/wiscsims/line_profile
 category=Plugins
