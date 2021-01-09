@@ -7,7 +7,7 @@
                               -------------------
         begin                : 2020-10-30
         git sha              : $Format:%H$
-        copyright            : (C) 2020 by Kouki Kitajima (WiscSIMS)
+        copyright            : (C) 2020 by WiscSIMS (Kouki Kitajima)
         email                : kitajima@wisc.edu
  ***************************************************************************/
 
