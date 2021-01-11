@@ -6,7 +6,7 @@
 name=Line Profile
 qgisMinimumVersion=3.0
 description=Create line profiles from attribute table in vector layer and color band of raster layer
-version=3.0.0
+version=3.1.1
 author=WiscSIMS (Kouki Kitajima)
 email=kitajima@wisc.edu
 
