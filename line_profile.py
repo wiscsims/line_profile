@@ -23,6 +23,7 @@
 import os
 import os.path
 import re
+import json
 from functools import reduce
 
 from qgis.PyQt.QtGui import QIcon
@@ -316,7 +317,8 @@ class LineProfile:
         if self.dock is None:
 
             # Create the dockwidget (after translation) and keep reference
-            self.dock = DockWidget(self.iface.mainWindow(), self.iface, self.model)
+            self.dock = DockWidget(
+                self.iface.mainWindow(), self.iface, self.model)
             self.dock.showDockWidget()
             self.dockOpened = True
             self.dock.setEnabled(True)
@@ -380,7 +382,8 @@ class LineProfile:
             pass
 
     def connectTools(self):
-        self.profileLineTool.proflineterminated.connect(self.handle_terminate_profile_line)
+        self.profileLineTool.proflineterminated.connect(
+            self.handle_terminate_profile_line)
         self.profileLineTool.doubleClicked.connect(self.resetPlot)
 
     def disconnectTools(self):
@@ -405,15 +408,21 @@ class LineProfile:
         # self.dock.resized.connect(self.updatePlot)
         self.dock.resized.connect(self.windowResizeEvent)
 
-        self.dock.myExportProfileLineBtn.clicked.connect(self.openExportProfileLineDialog)
-        self.dock.Btn_ImportProfileLine.clicked.connect(self.openImportProfileLineDialog)
+        self.dock.myExportProfileLineBtn.clicked.connect(
+            self.openExportProfileLineDialog)
+        self.dock.Btn_ImportProfileLine.clicked.connect(
+            self.openImportProfileLineDialog)
         self.dock.Btn_ExportPlot.clicked.connect(self.exportPlot)
         self.dock.ChkBox_TieLine.stateChanged.connect(self.updatePlot)
-        self.dock.ChkBox_Tracer.stateChanged.connect(self.handle_toggle_tracking_marker)
-        self.dock.ChkBox_ShowSamplingPoints.stateChanged.connect(self.handle_sampling_point_display)
-        self.dock.ChkBox_ShowSamplingAreas.stateChanged.connect(self.handle_sampling_area_display)
+        self.dock.ChkBox_Tracer.stateChanged.connect(
+            self.handle_toggle_tracking_marker)
+        self.dock.ChkBox_ShowSamplingPoints.stateChanged.connect(
+            self.handle_sampling_point_display)
+        self.dock.ChkBox_ShowSamplingAreas.stateChanged.connect(
+            self.handle_sampling_area_display)
         self.dock.Btn_ExportProfileData.clicked.connect(self.exportProfileData)
-        self.dock.CmbBox_ProfileLine.currentIndexChanged.connect(self.changeCurrentProfileLine)
+        self.dock.CmbBox_ProfileLine.currentIndexChanged.connect(
+            self.changeCurrentProfileLine)
 
         self.dock.Btn_ResetProfileLine.clicked.connect(self.clear_profile_line)
 
@@ -422,6 +431,9 @@ class LineProfile:
         self.dock.Grp_Normalized.clicked.connect(self.updatePlot)
         self.dock.Rdo_By_Total_Length.clicked.connect(self.updatePlot)
         self.dock.Rdo_By_Segment.clicked.connect(self.updatePlot)
+
+        self.dock.Btn_OpenAlignmentFile.clicked.connect(
+            self.import_alignment_file)
 
         # model
         self.model.itemChanged.connect(self.myConnect)
@@ -434,13 +446,18 @@ class LineProfile:
 
     def disconnectDock(self):
         try:
-            self.dock.myExportProfileLineBtn.clicked.disconnect(self.openExportProfileLineDialog)
-            self.dock.Btn_ImportProfileLine.clicked.disconnect(self.openImportProfileLineDialog)
+            self.dock.myExportProfileLineBtn.clicked.disconnect(
+                self.openExportProfileLineDialog)
+            self.dock.Btn_ImportProfileLine.clicked.disconnect(
+                self.openImportProfileLineDialog)
             self.dock.Btn_ExportPlot.clicked.disconnect(self.exportPlot)
             self.dock.ChkBox_TieLine.stateChanged.disconnect(self.updatePlot)
-            self.dock.ChkBox_ShowSamplingPoints.stateChanged.disconnect(self.updatePlot)
-            self.dock.ChkBox_ShowSamplingAreas.stateChanged.disconnect(self.updatePlot)
-            self.dock.Btn_ExportProfileData.clicked.disconnect(self.exportProfileData)
+            self.dock.ChkBox_ShowSamplingPoints.stateChanged.disconnect(
+                self.updatePlot)
+            self.dock.ChkBox_ShowSamplingAreas.stateChanged.disconnect(
+                self.updatePlot)
+            self.dock.Btn_ExportProfileData.clicked.disconnect(
+                self.exportProfileData)
             self.dock.CmbBox_ProfileLine.currentIndexChanged.disconnect(
                 self.changeCurrentProfileLine)
             # self.dock.Btn_ResetProfileLine.clicked.disconnect(self.addProfileLine)
@@ -591,7 +608,8 @@ class LineProfile:
 
         # initialize tie lines
         self.dpTool.initTieLines()
-        [self.profileLineTool.reset_tielines(pIndex) for pIndex in range(self.n_profile_lines)]
+        [self.profileLineTool.reset_tielines(
+            pIndex) for pIndex in range(self.n_profile_lines)]
 
         # reset sampling ranges
         # self.profileLineTool.resetSamplingRange()
@@ -696,7 +714,8 @@ class LineProfile:
                 profile_index, sampling_pts)
 
     def hide_all_sampling_points(self):
-        [self.hide_sampling_points(profile_index) for profile_index in range(self.n_profile_lines)]
+        [self.hide_sampling_points(profile_index)
+         for profile_index in range(self.n_profile_lines)]
 
     def hide_sampling_points(self, profile_index):
         self.profileLineTool.reset_sampling_points(profile_index)
@@ -716,11 +735,13 @@ class LineProfile:
 
         if layer_id in ks:
             sampling_areas = self.dpTool.sampling_areas[profile_index][layer_id]
-            self.profileLineTool.add_sampling_areas(profile_index, sampling_areas)
+            self.profileLineTool.add_sampling_areas(
+                profile_index, sampling_areas)
 
     def hide_all_sampling_areas(self):
         """ remove all sampling areas for all profile lines """
-        [self.hide_sampling_areas(profile_index) for profile_index in range(self.n_profile_lines)]
+        [self.hide_sampling_areas(profile_index)
+         for profile_index in range(self.n_profile_lines)]
 
     def hide_sampling_areas(self, profile_index):
         """ remove sampling area belong to specified profile line """
@@ -757,7 +778,8 @@ class LineProfile:
             for i in range(1, len(self.pLines)):
                 if n_seg != len(self.pLines[i]):
                     # Show message (need to have same number of segment)
-                    self.show_error_message_on_normaliziation('Need same number of segments.')
+                    self.show_error_message_on_normaliziation(
+                        'Need same number of segments.')
                     return False
             self.ppc.set_pLines(self.pLines, 0)
 
@@ -765,7 +787,8 @@ class LineProfile:
             for i in range(self.n_profile_lines):
                 if len(self.pLines[i]) == 0:
                     # Show message (need to have same number of segment)
-                    self.show_error_message_on_normaliziation('At least two profile line needed.')
+                    self.show_error_message_on_normaliziation(
+                        'At least two profile line needed.')
                     return False
         return True
 
@@ -1055,6 +1078,17 @@ class LineProfile:
             raster_layer_id = self.get_raster_layer_id(
                 r, layer_id, element_name)
             my_cbx.addItem(element_name, raster_layer_id)
+
+    def import_alignment_file(self):
+        default_path = "~"
+        align_file, _ = QFileDialog.getOpenFileName(self.iface.mainWindow(),
+                                                    'Select alginment file',
+                                                    default_path,
+                                                    "alignment files (*.json)")
+        with open(align_file, 'r') as f:
+            alignment = json.load(f)
+            px_size = 1 / alignment[0]['scale']
+            self.dock.Spn_PixelSize.setValue(px_size)
 
     def sanitizePath(self, path):
         path = os.path.expanduser(path)
