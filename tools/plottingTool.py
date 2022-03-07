@@ -3,7 +3,7 @@ from functools import reduce
 import matplotlib as mpl
 from matplotlib.figure import Figure
 from matplotlib.colors import ColorConverter
-from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import mpl_toolkits.axisartist as AA
 import numpy as np
 
