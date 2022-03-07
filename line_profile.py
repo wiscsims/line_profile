@@ -1,4 +1,5 @@
 """
+
 /***************************************************************************
  LineProfile
                                  A QGIS plugin
@@ -20,6 +21,7 @@
  *                                                                         *
  ***************************************************************************/
 """
+
 import os
 import os.path
 import re
@@ -105,10 +107,10 @@ class LineProfile:
         self.toolbar.setObjectName(u'LineProfile')
 
         self.pluginIsActive = False
-        self.dockwidget = None
-        self.DockWidget = None
+        # self.dockwidget = None
+        # self.DockWidget = None
 
-        self.dock = None
+        # self.dock = None
         self.dockOpened = False
         self.canvas = self.iface.mapCanvas()
         self.originalMapTool = self.canvas.mapTool()
@@ -235,7 +237,6 @@ class LineProfile:
         self.line_profile_action.setCheckable(True)
 
     # --------------------------------------------------------------------------
-
     def onClosePlugin(self):
         """Cleanup necessary items here when plugin dockwidget is closed"""
 
@@ -266,9 +267,9 @@ class LineProfile:
             self.line_profile_action.setChecked(False)
 
             # deactivate dock widget
-            self.dock.setEnabled(False)
-
-            self.dock = None
+            # self.dock.setEnabled(False)
+            #
+            # self.dock = None
 
             # set plugin state to deactivated
             self.pluginIsActive = False
@@ -314,8 +315,10 @@ class LineProfile:
 
         self.pluginIsActive = True
 
-        if self.dock is None:
-
+        try:
+            self.dock
+            # do nothing
+        except AttributeError:
             # Create the dockwidget (after translation) and keep reference
             self.dock = DockWidget(
                 self.iface.mainWindow(), self.iface, self.model)
@@ -353,6 +356,7 @@ class LineProfile:
 
     def mapToolChanged(self, current_maptool, old_maptool):
         # changed to LineProfileTool
+        old_maptool
         if re.search(r'LineProfileTool', str(current_maptool)):
             self.dock.setEnabled(True)
             return
@@ -637,6 +641,7 @@ class LineProfile:
                 color_org = self.model.getColorName(r)
                 layer_type = layer.type()
 
+                myData = []
                 if layer_type == layer.VectorLayer:
                     """Vector Layer"""
                     myData = self.dpTool.getVectorProfile(
@@ -906,8 +911,8 @@ class LineProfile:
         self.importProfileLine(layer)
 
     def importProfileLine(self, layer):
-
         dp = layer.dataProvider()
+        points = []
         for f in dp.getFeatures():
             points = f.geometry().asMultiPolyline()
         points = [[pt.x(), pt.y()] for pt in points[0]]
@@ -1025,7 +1030,7 @@ class LineProfile:
             myD = []
             myL = 0
             out = []
-            filePath, fileType = os.path.splitext(fileName)
+            fileType = os.path.splitext(fileName)
             if fileType == '.txt':
                 sep = "\t"
             elif fileType == '.csv':
@@ -1048,7 +1053,7 @@ class LineProfile:
                 a = [list(x) for x in zip(*d['data'])]
                 curL = len(a)
                 # padded by '' for shorter data length
-                for n in range(myL - curL):
+                for _ in range(myL - curL):
                     a.append(['', ''])
                 a.insert(0, ['distance (micron)', label])
                 myD.append(a)
