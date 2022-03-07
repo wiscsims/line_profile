@@ -4,7 +4,28 @@ A QGIS plugin for creating line profiles from vector and raster layers.
 
 ## Contents
 
-${toc}
+- [Contents](#contents)
+- [Requirement](#requirement)
+- [Installation](#installation)
+  - [Install from QGIS Plugin Repository](#install-from-qgis-plugin-repository)
+  - [Install from ZIP file](#install-from-zip-file)
+- [Quick Start](#quick-start)
+- [Usage](#usage)
+  - [Creating Line Profiles](#creating-line-profiles)
+  - [Plot Options](#plot-options)
+  - [Profile Lines](#profile-lines)
+  - [Tieline](#tieline)
+  - [Tracking Marker](#tracking-marker)
+  - [Save Plot](#save-plot)
+- [Options](#options)
+  - [Export Data](#export-data)
+  - [Import/Export Profile Line](#import/export-profile-line)
+  - [Scaling](#scaling)
+- [Developmental Features](#developmental-features)
+  - [Checking sampling points and area visually](#checking-sampling-points-and-area-visually)
+  - [Normalize to `Profile Line 1`](#normalize-to-`profile-line-1`)
+    - [By length](#by-length)
+    - [By segment](#by-segment)
 
 ## Requirement
 
@@ -26,7 +47,7 @@ There are two ways to install `Line Profile`.
 3. Select the `All` tab on the far left. Search/find `Line Profile` from the plugin list and click `Install Plugin` button on the right bottom of `Manege and Install Plugins` window.
    <a href="img/readme/plugin_install.png" target="_blank"><img src="img/readme/plugin_install.png" width="600" alt="Install Line Profile from the list"></a>
 
-4. Select `Installed Plugins` to make sure `Line Profile` was correctlly installed. If it is not checked, click the checkbox (on the left of green puzzle piece icon) to activate the plugin. You also see `Line Profile` icon in the QGIS toolbar.
+4. Select `Installed Plugins` to make sure `Line Profile` was correctly installed. If it is not checked, click the checkbox (on the left of green puzzle piece icon) to activate the plugin. You also see `Line Profile` icon in the QGIS toolbar.
 
 ### Install from ZIP file
 
@@ -43,7 +64,7 @@ Manual installation is also available.
    <a href="img/readme/plugin_install_zip.png" target="_blank"><img src="img/readme/plugin_install_zip.png" width="600" alt="Install Line Profile from zip file"></a>
 
 5. Hit `Install Plugin` to install `Line Profile`.
-6. Select `Installed Plugins` to make sure `Line Profile` was correctlly installed. You also see `Line Profile` icon in the QGIS toolbar.
+6. Select `Installed Plugins` to make sure `Line Profile` was correctly installed. You also see `Line Profile` icon in the QGIS toolbar.
 
 ## Quick Start
 
@@ -61,7 +82,7 @@ Manual installation is also available.
 
 You can create profile lines with clicking on canvas.
 
-- **Start profile line/Create verrtics**: `Left Click`
+- **Start profile line/Create vertics**: `Left Click`
 - **Terminate profile line**: `Right Click`
 - **Cancel/Clear profile line**: `Double Click`
 
@@ -87,6 +108,10 @@ A thin yellow line indicating where the each data point in the vector layer is p
 
 A marker on the profile line indicating the location of the data in the plot. `Default: Off`.
 
+### Save Plot
+
+Plots can be saved as raster or vector file with various format (jpg, png, pdf, svg).
+
 ## Options
 
 You can export data and profile line, and import profile line
@@ -97,11 +122,13 @@ Data used in the plot can be exported as text data with csv format.
 
 ### Import/Export Profile Line
 
+TBU
+
+### Scaling
+
+Pixel size (px/map unit) can be set manually. You can also import alignment files which you used in WiscSIMS session to set pixel size.
+
 Profile lines are also exportable as shape file. You can reproduce the profile line and plots.
-
-### Save Plot
-
-Plots can be saved as raster or vector file with various format (jpg, png, pdf, svg).
 
 ## Developmental Features
 
@@ -112,7 +139,11 @@ _Heavy processing, though._
 - as a shaded area
 - as points
 
-### Normalize to `Profile Line 1`
+<!-- ### Normalize to `Profile Line 1` -->
+
+### Normalization of profile lines
+
+Select checkbox if you want to normalize the Profile Line 2 to Profile Line 1.
 
 #### By length
 
