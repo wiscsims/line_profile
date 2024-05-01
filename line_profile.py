@@ -88,11 +88,8 @@ class LineProfile:
         self.plugin_dir = os.path.dirname(__file__)
 
         # initialize locale
-        locale = QSettings().value('locale/userLocale')[0:2]
-        locale_path = os.path.join(
-            self.plugin_dir,
-            'i18n',
-            'LineProfile_{}.qm'.format(locale))
+        locale = QSettings().value("locale/userLocale")[0:2]
+        locale_path = os.path.join(self.plugin_dir, "i18n", "LineProfile_{}.qm".format(locale))
 
         if os.path.exists(locale_path):
             self.translator = QTranslator()
@@ -101,10 +98,10 @@ class LineProfile:
 
         # Declare instance attributes
         self.actions = []
-        self.menu = self.tr(u"&WiscSIMS")
+        self.menu = self.tr("&WiscSIMS")
         # TODO: We are going to let the user set this up in a future iteration
-        self.toolbar = self.iface.addToolBar(u'LineProfile')
-        self.toolbar.setObjectName(u'LineProfile')
+        self.toolbar = self.iface.addToolBar("LineProfile")
+        self.toolbar.setObjectName("LineProfile")
 
         self.pluginIsActive = False
         # self.dockwidget = None
@@ -149,19 +146,20 @@ class LineProfile:
         :rtype: QString
         """
         # noinspection PyTypeChecker,PyArgumentList,PyCallByClass
-        return QCoreApplication.translate('LineProfile', message)
+        return QCoreApplication.translate("LineProfile", message)
 
     def add_action(
-            self,
-            icon_path,
-            text,
-            callback,
-            enabled_flag=True,
-            add_to_menu=True,
-            add_to_toolbar=True,
-            status_tip=None,
-            whats_this=None,
-            parent=None):
+        self,
+        icon_path,
+        text,
+        callback,
+        enabled_flag=True,
+        add_to_menu=True,
+        add_to_toolbar=True,
+        status_tip=None,
+        whats_this=None,
+        parent=None,
+    ):
         """Add a toolbar icon to the toolbar.
 
         :param icon_path: Path to the icon for this action. Can be a resource
@@ -216,9 +214,7 @@ class LineProfile:
             self.toolbar.addAction(action)
 
         if add_to_menu:
-            self.iface.addPluginToMenu(
-                self.menu,
-                action)
+            self.iface.addPluginToMenu(self.menu, action)
 
         self.actions.append(action)
 
@@ -227,13 +223,14 @@ class LineProfile:
     def initGui(self):
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
 
-        icon_path = ':/plugins/line_profile/img/icon.png'
+        icon_path = ":/plugins/line_profile/img/icon.png"
         self.line_profile_action = self.add_action(
             icon_path,
-            text=self.tr(u'Line Profile'),
+            text=self.tr("Line Profile"),
             callback=self.run,
-            whats_this=self.tr('Plot Line Profiles'),
-            parent=self.iface.mainWindow())
+            whats_this=self.tr("Plot Line Profiles"),
+            parent=self.iface.mainWindow(),
+        )
         self.line_profile_action.setCheckable(True)
 
     # --------------------------------------------------------------------------
@@ -297,7 +294,7 @@ class LineProfile:
             print(str(AttributeError))
 
         for action in self.actions:
-            self.iface.removePluginMenu(self.tr(u'&LineProfile'), action)
+            self.iface.removePluginMenu(self.tr("&LineProfile"), action)
             self.iface.removeToolBarIcon(action)
 
         # remove the toolbar
@@ -320,8 +317,7 @@ class LineProfile:
             # do nothing
         except AttributeError:
             # Create the dockwidget (after translation) and keep reference
-            self.dock = DockWidget(
-                self.iface.mainWindow(), self.iface, self.model)
+            self.dock = DockWidget(self.iface.mainWindow(), self.iface, self.model)
             self.dock.showDockWidget()
             self.dockOpened = True
             self.dock.setEnabled(True)
@@ -342,7 +338,6 @@ class LineProfile:
         self.profileLineTool.show_profile_line()
 
     def init_map_tool(self):
-
         self.prev_tool = self.canvas.mapTool()
         self.line_profile_action.setChecked(True)
 
@@ -357,7 +352,7 @@ class LineProfile:
     def mapToolChanged(self, current_maptool, old_maptool):
         # changed to LineProfileTool
         old_maptool
-        if re.search(r'LineProfileTool', str(current_maptool)):
+        if re.search(r"LineProfileTool", str(current_maptool)):
             self.dock.setEnabled(True)
             return
 
@@ -386,8 +381,7 @@ class LineProfile:
             pass
 
     def connectTools(self):
-        self.profileLineTool.proflineterminated.connect(
-            self.handle_terminate_profile_line)
+        self.profileLineTool.proflineterminated.connect(self.handle_terminate_profile_line)
         self.profileLineTool.doubleClicked.connect(self.resetPlot)
 
     def disconnectTools(self):
@@ -402,7 +396,6 @@ class LineProfile:
         self.update_area_sampling_list()
 
     def connectDock(self):
-
         self.connectTools()
 
         self.disconnectDock()
@@ -412,21 +405,15 @@ class LineProfile:
         # self.dock.resized.connect(self.updatePlot)
         self.dock.resized.connect(self.windowResizeEvent)
 
-        self.dock.myExportProfileLineBtn.clicked.connect(
-            self.openExportProfileLineDialog)
-        self.dock.Btn_ImportProfileLine.clicked.connect(
-            self.openImportProfileLineDialog)
+        self.dock.myExportProfileLineBtn.clicked.connect(self.openExportProfileLineDialog)
+        self.dock.Btn_ImportProfileLine.clicked.connect(self.openImportProfileLineDialog)
         self.dock.Btn_ExportPlot.clicked.connect(self.exportPlot)
         self.dock.ChkBox_TieLine.stateChanged.connect(self.updatePlot)
-        self.dock.ChkBox_Tracer.stateChanged.connect(
-            self.handle_toggle_tracking_marker)
-        self.dock.ChkBox_ShowSamplingPoints.stateChanged.connect(
-            self.handle_sampling_point_display)
-        self.dock.ChkBox_ShowSamplingAreas.stateChanged.connect(
-            self.handle_sampling_area_display)
+        self.dock.ChkBox_Tracer.stateChanged.connect(self.handle_toggle_tracking_marker)
+        self.dock.ChkBox_ShowSamplingPoints.stateChanged.connect(self.handle_sampling_point_display)
+        self.dock.ChkBox_ShowSamplingAreas.stateChanged.connect(self.handle_sampling_area_display)
         self.dock.Btn_ExportProfileData.clicked.connect(self.exportProfileData)
-        self.dock.CmbBox_ProfileLine.currentIndexChanged.connect(
-            self.changeCurrentProfileLine)
+        self.dock.CmbBox_ProfileLine.currentIndexChanged.connect(self.changeCurrentProfileLine)
 
         self.dock.Btn_ResetProfileLine.clicked.connect(self.clear_profile_line)
 
@@ -436,8 +423,7 @@ class LineProfile:
         self.dock.Rdo_By_Total_Length.clicked.connect(self.updatePlot)
         self.dock.Rdo_By_Segment.clicked.connect(self.updatePlot)
 
-        self.dock.Btn_OpenAlignmentFile.clicked.connect(
-            self.import_alignment_file)
+        self.dock.Btn_OpenAlignmentFile.clicked.connect(self.import_alignment_file)
 
         # model
         self.model.itemChanged.connect(self.myConnect)
@@ -450,25 +436,19 @@ class LineProfile:
 
     def disconnectDock(self):
         try:
-            self.dock.myExportProfileLineBtn.clicked.disconnect(
-                self.openExportProfileLineDialog)
-            self.dock.Btn_ImportProfileLine.clicked.disconnect(
-                self.openImportProfileLineDialog)
+            self.dock.myExportProfileLineBtn.clicked.disconnect(self.openExportProfileLineDialog)
+            self.dock.Btn_ImportProfileLine.clicked.disconnect(self.openImportProfileLineDialog)
             self.dock.Btn_ExportPlot.clicked.disconnect(self.exportPlot)
             self.dock.ChkBox_TieLine.stateChanged.disconnect(self.updatePlot)
-            self.dock.ChkBox_ShowSamplingPoints.stateChanged.disconnect(
-                self.updatePlot)
-            self.dock.ChkBox_ShowSamplingAreas.stateChanged.disconnect(
-                self.updatePlot)
-            self.dock.Btn_ExportProfileData.clicked.disconnect(
-                self.exportProfileData)
-            self.dock.CmbBox_ProfileLine.currentIndexChanged.disconnect(
-                self.changeCurrentProfileLine)
+            self.dock.ChkBox_ShowSamplingPoints.stateChanged.disconnect(self.updatePlot)
+            self.dock.ChkBox_ShowSamplingAreas.stateChanged.disconnect(self.updatePlot)
+            self.dock.Btn_ExportProfileData.clicked.disconnect(self.exportProfileData)
+            self.dock.CmbBox_ProfileLine.currentIndexChanged.disconnect(self.changeCurrentProfileLine)
             # self.dock.Btn_ResetProfileLine.clicked.disconnect(self.addProfileLine)
 
             self.dock.resizeEvent = None
 
-        # model
+            # model
             self.model.itemChanged.disconnect(self.myConnect)
             self.model.rowsInserted.disconnect(self.myConnect)
             self.model.rowsRemoved.disconnect(self.myConnect)
@@ -485,8 +465,7 @@ class LineProfile:
             self.dock.widget_3.show()
 
     def showConfigDialog(self, index):
-        self.configPlotDialog = LPConfigPlotDialog(
-            self.iface, self.model, index)
+        self.configPlotDialog = LPConfigPlotDialog(self.iface, self.model, index)
         self.configPlotDialog.show()
 
     def refreshModel(self):
@@ -523,16 +502,17 @@ class LineProfile:
         self.exportPlot()
 
     def exportPlot(self):
-        default_file_name = 'line_profile_image'
-        project_path = QgsProject.instance().readPath('./')
-        fileName, _ = QFileDialog.getSaveFileName(self.iface.mainWindow(),
-                                                  "Save As",
-                                                  os.path.join(
-                                                      project_path, default_file_name),
-                                                  "Portable Document Format (*.pdf);;\
+        default_file_name = "line_profile_image"
+        project_path = QgsProject.instance().readPath("./")
+        fileName, _ = QFileDialog.getSaveFileName(
+            self.iface.mainWindow(),
+            "Save As",
+            os.path.join(project_path, default_file_name),
+            "Portable Document Format (*.pdf);;\
                                                Image - PNG file (*.png);;\
                                                Image - JPEG file (*.jpg);;\
-                                               Scalable Vector Graphics (*.svg)")
+                                               Scalable Vector Graphics (*.svg)",
+        )
         if fileName:
             self.updatePlot()
             self.plotTool.savePlot(fileName)
@@ -570,11 +550,12 @@ class LineProfile:
         self.timer_pixel_size_spin_box.start(1000)
 
         # print('pixel size: ', self.dpTool.pixel_size)
+
     def get_raster_layer_id(self, row, layer_id, element_name):
-        return '{}_{}_{}'.format(row, layer_id[-8:], element_name)
+        return "{}_{}_{}".format(row, layer_id[-8:], element_name)
 
     def updatePlot(self):
-        """ sampling/correct data from raster and vector layers along with profile line,
+        """sampling/correct data from raster and vector layers along with profile line,
         then create/update plot
         """
         self.pLines = []
@@ -612,8 +593,7 @@ class LineProfile:
 
         # initialize tie lines
         self.dpTool.initTieLines()
-        [self.profileLineTool.reset_tielines(
-            pIndex) for pIndex in range(self.n_profile_lines)]
+        [self.profileLineTool.reset_tielines(pIndex) for pIndex in range(self.n_profile_lines)]
 
         # reset sampling ranges
         # self.profileLineTool.resetSamplingRange()
@@ -644,25 +624,27 @@ class LineProfile:
                 myData = []
                 if layer_type == layer.VectorLayer:
                     """Vector Layer"""
-                    myData = self.dpTool.getVectorProfile(
-                        pp, layer, field, config['maxDistance'], None, pIndex)
+                    myData = self.dpTool.getVectorProfile(pp, layer, field, config["maxDistance"], None, pIndex)
 
                 elif layer_type == layer.RasterLayer:
                     """Raster Layer"""
-                    equi_width = int(config['areaSampling']) * \
-                        config['areaSamplingWidth']
-                    raster_layer_id = self.get_raster_layer_id(
-                        r, layer.id(), label)
+                    equi_width = int(config["areaSampling"]) * config["areaSamplingWidth"]
+                    raster_layer_id = self.get_raster_layer_id(r, layer.id(), label)
                     myData = self.dpTool.getRasterProfile(
-                        pp, layer, field, config['fullRes'], raster_layer_id, equi_width, pIndex)
+                        pp, layer, field, config["fullRes"], raster_layer_id, equi_width, pIndex
+                    )
                     # draw raster sampling area and pionts
 
-                data.append({'data': myData,
-                             'label': label,
-                             'configs': config,
-                             'layer': layer,
-                             'layer_type': layer_type,
-                             'color_org': color_org})
+                data.append(
+                    {
+                        "data": myData,
+                        "label": label,
+                        "configs": config,
+                        "layer": layer,
+                        "layer_type": layer_type,
+                        "color_org": color_org,
+                    }
+                )
             # self.handle_raster_sampling_details(pIndex, config, color_org)
             self.plotData.append(data)
 
@@ -686,10 +668,13 @@ class LineProfile:
             return
 
         """ draw plot """
-        self.plotTool.drawPlot3(self.pLines, self.plotData,
-                                pLineNormalized=normalized,
-                                pLineNormalizedBySegment=normalized_by_segment,
-                                profilePlotConverter=self.ppc)
+        self.plotTool.drawPlot3(
+            self.pLines,
+            self.plotData,
+            pLineNormalized=normalized,
+            pLineNormalizedBySegment=normalized_by_segment,
+            profilePlotConverter=self.ppc,
+        )
 
     def show_error_message_on_normaliziation(self, text):
         msg = QMessageBox()
@@ -700,56 +685,58 @@ class LineProfile:
         pass
 
     def handle_sampling_point_display(self):
-        """ handle show/hide sampling points """
+        """handle show/hide sampling points"""
 
         self.hide_all_sampling_points()
         if self.dock.ChkBox_ShowSamplingPoints.isChecked():
-            [self.show_sampling_points(profile_index) for profile_index in range(
-                self.n_profile_lines) if len(self.profileLineTool.profile[profile_index]['point'])]
+            [
+                self.show_sampling_points(profile_index)
+                for profile_index in range(self.n_profile_lines)
+                if len(self.profileLineTool.profile[profile_index]["point"])
+            ]
 
     def show_sampling_points(self, profile_index):
-        """draw sampling points """
+        """draw sampling points"""
         current_id = self.dock.ChkBox_Area_Sampling_Element.currentIndex()
         layer_id = self.dock.ChkBox_Area_Sampling_Element.itemData(current_id)
         ks = self.dpTool.sampling_points[profile_index].keys()
 
         if layer_id in ks:
             sampling_pts = self.dpTool.sampling_points[profile_index][layer_id]
-            self.profileLineTool.add_sampling_points(
-                profile_index, sampling_pts)
+            self.profileLineTool.add_sampling_points(profile_index, sampling_pts)
 
     def hide_all_sampling_points(self):
-        [self.hide_sampling_points(profile_index)
-         for profile_index in range(self.n_profile_lines)]
+        [self.hide_sampling_points(profile_index) for profile_index in range(self.n_profile_lines)]
 
     def hide_sampling_points(self, profile_index):
         self.profileLineTool.reset_sampling_points(profile_index)
 
     def handle_sampling_area_display(self):
-        """ handle show/hide sampling areas """
+        """handle show/hide sampling areas"""
         self.hide_all_sampling_areas()
         if self.dock.ChkBox_ShowSamplingAreas.isChecked():
-            [self.show_sampling_areas(profile_index) for profile_index in range(
-                self.n_profile_lines) if len(self.profileLineTool.profile[profile_index]['point'])]
+            [
+                self.show_sampling_areas(profile_index)
+                for profile_index in range(self.n_profile_lines)
+                if len(self.profileLineTool.profile[profile_index]["point"])
+            ]
 
     def show_sampling_areas(self, profile_index):
-        """ draw sampling areas belong to specified profile line """
+        """draw sampling areas belong to specified profile line"""
         current_id = self.dock.ChkBox_Area_Sampling_Element.currentIndex()
         layer_id = self.dock.ChkBox_Area_Sampling_Element.itemData(current_id)
         ks = self.dpTool.sampling_points[profile_index].keys()
 
         if layer_id in ks:
             sampling_areas = self.dpTool.sampling_areas[profile_index][layer_id]
-            self.profileLineTool.add_sampling_areas(
-                profile_index, sampling_areas)
+            self.profileLineTool.add_sampling_areas(profile_index, sampling_areas)
 
     def hide_all_sampling_areas(self):
-        """ remove all sampling areas for all profile lines """
-        [self.hide_sampling_areas(profile_index)
-         for profile_index in range(self.n_profile_lines)]
+        """remove all sampling areas for all profile lines"""
+        [self.hide_sampling_areas(profile_index) for profile_index in range(self.n_profile_lines)]
 
     def hide_sampling_areas(self, profile_index):
-        """ remove sampling area belong to specified profile line """
+        """remove sampling area belong to specified profile line"""
         self.profileLineTool.reset_sampling_areas(profile_index)
 
     def handle_raster_sampling_details(self, p_index, config, color_org):
@@ -758,11 +745,10 @@ class LineProfile:
         self.profileLineTool.reset_sampling_areas(p_index)
         self.profileLineTool.reset_raster_sampling_points(p_index)
 
-        if config['areaSampling']:
+        if config["areaSampling"]:
             # add sampling area
             if self.dock.ChkBox_ShowSamplingAreas.isChecked():
-                self.profileLineTool.add_sampling_areas(
-                    self.dpTool.getSamplingArea(), color_org)
+                self.profileLineTool.add_sampling_areas(self.dpTool.getSamplingArea(), color_org)
 
             # add sampling points
             if self.dock.ChkBox_ShowSamplingPoints.isChecked():
@@ -777,14 +763,13 @@ class LineProfile:
         self.updatePlot()
 
     def handle_normalization(self, normalized, normalized_by_segment):
-        """ check profile lines whether normalizable or not """
+        """check profile lines whether normalizable or not"""
         if normalized and normalized_by_segment:
             n_seg = len(self.pLines[0])
             for i in range(1, len(self.pLines)):
                 if n_seg != len(self.pLines[i]):
                     # Show message (need to have same number of segment)
-                    self.show_error_message_on_normaliziation(
-                        'Need same number of segments.')
+                    self.show_error_message_on_normaliziation("Need same number of segments.")
                     return False
             self.ppc.set_pLines(self.pLines, 0)
 
@@ -792,8 +777,7 @@ class LineProfile:
             for i in range(self.n_profile_lines):
                 if len(self.pLines[i]) == 0:
                     # Show message (need to have same number of segment)
-                    self.show_error_message_on_normaliziation(
-                        'At least two profile line needed.')
+                    self.show_error_message_on_normaliziation("At least two profile line needed.")
                     return False
         return True
 
@@ -805,8 +789,7 @@ class LineProfile:
             return
 
         if self.expPLDialog.Grp_SaveShapeFileAs.isChecked():
-            shapeFilePath = self.sanitizePath(
-                self.expPLDialog.shapeFileName)
+            shapeFilePath = self.sanitizePath(self.expPLDialog.shapeFileName)
             self.exportProfileLineAsShapeFile(shapeFilePath)
         if self.expPLDialog.Grp_AddField.isChecked():
             self.addDistanceToAttribute()
@@ -816,7 +799,7 @@ class LineProfile:
         polyline = []
         attr = []
         fileName = os.path.basename(shapeFilePath.split(os.extsep)[0])
-        profileLineLayer = QgsVectorLayer('LineString', fileName, 'memory')
+        profileLineLayer = QgsVectorLayer("LineString", fileName, "memory")
 
         profileLineLayer.startEditing()
         dataProvider = profileLineLayer.dataProvider()
@@ -826,14 +809,14 @@ class LineProfile:
 
         # add fields
         for i in range(len(points)):
-            fields.append(QgsField('Point-{0}'.format(i + 1), QVariant.String))
-        fields.append(QgsField('Max Dist.', QVariant.Double))
+            fields.append(QgsField("Point-{0}".format(i + 1), QVariant.String))
+        fields.append(QgsField("Max Dist.", QVariant.Double))
         dataProvider.addAttributes(fields)
 
         # get rofile line features
         for pt in points:
             polyline.append(QgsPoint(*pt))
-            attr.append('{0}, {1}'.format(*pt))
+            attr.append("{0}, {1}".format(*pt))
 
         # add a feature
         feture = QgsFeature()
@@ -847,14 +830,13 @@ class LineProfile:
         profileLineLayer.updateExtents()
 
         # save shape file
-        error, _ = QgsVectorFileWriter.writeAsVectorFormat(profileLineLayer,
-                                                           shapeFilePath,
-                                                           'UTF-8',
-                                                           driverName='ESRI Shapefile')
+        error, _ = QgsVectorFileWriter.writeAsVectorFormat(
+            profileLineLayer, shapeFilePath, "UTF-8", driverName="ESRI Shapefile"
+        )
         if error == QgsVectorFileWriter.NoError:
             if self.expPLDialog.ChkBox_AddSavedFileToMap.isChecked():
                 # add shape file to map
-                self.iface.addVectorLayer(shapeFilePath, fileName, 'ogr')
+                self.iface.addVectorLayer(shapeFilePath, fileName, "ogr")
         else:
             pass
 
@@ -868,7 +850,6 @@ class LineProfile:
         return True
 
     def addDistanceToAttribute(self):
-
         newFieldName = self.expPLDialog.TBox_FieldName.text()
 
         for r in range(self.model.rowCount()):
@@ -881,15 +862,9 @@ class LineProfile:
             config = self.model.getConfigs(r)
             pIndex = self.getProfileIndex()
             dataProvider = layer.dataProvider()
-            dataProvider.addAttributes(
-                [QgsField(newFieldName, QVariant.Double)])
+            dataProvider.addAttributes([QgsField(newFieldName, QVariant.Double)])
             layer.updateFields()
-            self.dpTool.getVectorProfile(self.pLines[pIndex],
-                                         layer,
-                                         field,
-                                         config['maxDistance'],
-                                         newFieldName,
-                                         pIndex)
+            self.dpTool.getVectorProfile(self.pLines[pIndex], layer, field, config["maxDistance"], newFieldName, pIndex)
 
     def openImportProfileLineDialog(self):
         self.impPLDialog = LPImportDialog(self.iface)
@@ -899,14 +874,11 @@ class LineProfile:
             return
 
         if self.impPLDialog.RadBtn_FileSelect.isChecked():
-            shapeFilePath = self.sanitizePath(
-                self.impPLDialog.TBox_ShapeFilePath.text())
+            shapeFilePath = self.sanitizePath(self.impPLDialog.TBox_ShapeFilePath.text())
             shapeFileName = os.path.basename(shapeFilePath.split(os.extsep)[1])
-            layer = self.iface.addVectorLayer(
-                shapeFilePath, shapeFileName, 'ogr')
+            layer = self.iface.addVectorLayer(shapeFilePath, shapeFileName, "ogr")
         else:
-            layerId = self.impPLDialog.CmbBox_LayerSelect.itemData(
-                self.impPLDialog.CmbBox_LayerSelect.currentIndex())
+            layerId = self.impPLDialog.CmbBox_LayerSelect.itemData(self.impPLDialog.CmbBox_LayerSelect.currentIndex())
             layer = self.getLayerById(layerId)
         self.importProfileLine(layer)
 
@@ -921,8 +893,7 @@ class LineProfile:
 
     def init_profile_line(self):
         for i in range(self.n_profile_lines):
-            self.dock.CmbBox_ProfileLine.addItem(
-                'Profile Line {}'.format(i + 1), i)
+            self.dock.CmbBox_ProfileLine.addItem("Profile Line {}".format(i + 1), i)
         self.dock.CmbBox_ProfileLine.setCurrentIndex(0)
 
         # self.profileLineTool.initProfileLine(n)
@@ -948,11 +919,13 @@ class LineProfile:
         self.profileLineTool.terminated = True
 
     def check_tracer_condition(self, event, pIndex, normFactor):
-        res = not self.dock.ChkBox_Tracer.isChecked() \
-            or event.xdata is None \
-            or event.ydata is None \
-            or len(self.pLines) < pIndex \
+        res = (
+            not self.dock.ChkBox_Tracer.isChecked()
+            or event.xdata is None
+            or event.ydata is None
+            or len(self.pLines) < pIndex
             or len(normFactor) <= pIndex
+        )
         return res
 
     def handle_toggle_tracking_marker(self, state):
@@ -968,7 +941,7 @@ class LineProfile:
         if not (event.xdata and event.ydata):
             return False
 
-        if len(self.profileLineTool.profile[self.profileLineTool.profile_line_index]['point']) == 0:
+        if len(self.profileLineTool.profile[self.profileLineTool.profile_line_index]["point"]) == 0:
             return False
 
         return True
@@ -1022,18 +995,20 @@ class LineProfile:
         self.updatePlot()
 
     def exportProfileData(self):
-        fileName, _ = QFileDialog.getSaveFileName(self.iface.mainWindow(),
-                                                  "Save As",
-                                                  os.environ['HOME'],
-                                                  "Tab Deliminated Text (*.txt);; Comma Separated Values (*.csv)")
+        fileName, _ = QFileDialog.getSaveFileName(
+            self.iface.mainWindow(),
+            "Save As",
+            os.environ["HOME"],
+            "Tab Deliminated Text (*.txt);; Comma Separated Values (*.csv)",
+        )
         if fileName:
             myD = []
             myL = 0
             out = []
             fileType = os.path.splitext(fileName)
-            if fileType == '.txt':
+            if fileType == ".txt":
                 sep = "\t"
-            elif fileType == '.csv':
+            elif fileType == ".csv":
                 sep = ","
             else:
                 sep = " "
@@ -1041,21 +1016,20 @@ class LineProfile:
             data = self.plotData[pIndex]
 
             for d in data:
-                if d['configs']['movingAverage']:
-                    d['data'] = self.plotTool.calculateMovingAverage(d['data'],
-                                                                     d['configs']['movingAverageN'])
-                curL = len(d['data'][0])
+                if d["configs"]["movingAverage"]:
+                    d["data"] = self.plotTool.calculateMovingAverage(d["data"], d["configs"]["movingAverageN"])
+                curL = len(d["data"][0])
                 myL = curL if curL >= myL else myL
 
             for d in data:
-                label = d['layer'].name() + '_' + d['label']
+                label = d["layer"].name() + "_" + d["label"]
                 # transpose data rows and columns
-                a = [list(x) for x in zip(*d['data'])]
+                a = [list(x) for x in zip(*d["data"])]
                 curL = len(a)
                 # padded by '' for shorter data length
                 for _ in range(myL - curL):
-                    a.append(['', ''])
-                a.insert(0, ['distance (micron)', label])
+                    a.append(["", ""])
+                a.insert(0, ["distance (micron)", label])
                 myD.append(a)
 
             for r in range(myL + 1):  # plus 1 for label
@@ -1064,7 +1038,7 @@ class LineProfile:
                     l += c[r]
                 out.append(sep.join(str(ll) for ll in l))
 
-            with open(fileName, 'w') as f:
+            with open(fileName, "w") as f:
                 f.write("\n".join(out))
 
     def getLayerById(self, lid):
@@ -1078,21 +1052,19 @@ class LineProfile:
             element_name = self.model.getDataName(r)
             layer_id = self.model.getLayerId(r)
             layer_type = self.model.getLayerTypeName(r)
-            if layer_type == 'Vector':
+            if layer_type == "Vector":
                 continue
-            raster_layer_id = self.get_raster_layer_id(
-                r, layer_id, element_name)
+            raster_layer_id = self.get_raster_layer_id(r, layer_id, element_name)
             my_cbx.addItem(element_name, raster_layer_id)
 
     def import_alignment_file(self):
         default_path = "~"
-        align_file, _ = QFileDialog.getOpenFileName(self.iface.mainWindow(),
-                                                    'Select alginment file',
-                                                    default_path,
-                                                    "alignment files (*.json)")
-        with open(align_file, 'r') as f:
+        align_file, _ = QFileDialog.getOpenFileName(
+            self.iface.mainWindow(), "Select alginment file", default_path, "alignment files (*.json)"
+        )
+        with open(align_file, "r") as f:
             alignment = json.load(f)
-            px_size = 1 / alignment[0]['scale']
+            px_size = 1 / alignment[0]["scale"]
             self.dock.Spn_PixelSize.setValue(px_size)
 
     def sanitizePath(self, path):

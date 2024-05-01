@@ -5,7 +5,6 @@ from qgis.gui import QgsMapTool, QgsRubberBand, QgsVertexMarker
 
 
 class ProfileLineTool(QgsMapTool):
-
     doubleClicked = pyqtSignal()
     proflineterminated = pyqtSignal()
 
@@ -35,9 +34,7 @@ class ProfileLineTool(QgsMapTool):
          }
         """
 
-        self.plColor = [QColor(255, 20, 20, 250),
-                        QColor(20, 20, 255, 250),
-                        QColor(20, 255, 20, 250)]
+        self.plColor = [QColor(255, 20, 20, 250), QColor(20, 20, 255, 250), QColor(20, 255, 20, 250)]
 
         self.flag_double_clicked = False
 
@@ -54,14 +51,8 @@ class ProfileLineTool(QgsMapTool):
         rb_line.setColor(self.plColor[idx])
 
         default_profile = {
-            'point': [],
-            'markers': {
-                'line': rb_line,
-                'vertex': [],
-                'tieline': [],
-                'sampling_area': [],
-                'sampling_point': []
-            }
+            "point": [],
+            "markers": {"line": rb_line, "vertex": [], "tieline": [], "sampling_area": [], "sampling_point": []},
         }
 
         return default_profile
@@ -77,26 +68,24 @@ class ProfileLineTool(QgsMapTool):
 
     def reset_profile(self, profile_index):
         # reset points
-        self.profile[profile_index]['point'] = []
+        self.profile[profile_index]["point"] = []
 
         # reset rubberband
         #   - line
-        self.profile[profile_index]['markers']['line'].reset()
+        self.profile[profile_index]["markers"]["line"].reset()
 
         try:
             #   - vertex
             # reset vertex rubberbands (delete from canvas)
-            [vtx.reset() and self.scene.removeItem(vtx)
-             for vtx in self.profile[profile_index]['markers']['vertex']]
+            [vtx.reset() and self.scene.removeItem(vtx) for vtx in self.profile[profile_index]["markers"]["vertex"]]
             # clear list of vertex rubberbands
-            self.profile[profile_index]['markers']['vertex'] = []
+            self.profile[profile_index]["markers"]["vertex"] = []
 
             #   - tieline
             # reset tieline rubberbands (delete from canvas)
-            [tie.reset() and self.scene.removeItem(tie)
-             for tie in self.profile[profile_index]['markers']['tieline']]
+            [tie.reset() and self.scene.removeItem(tie) for tie in self.profile[profile_index]["markers"]["tieline"]]
             # clear list of tieline rubberbands
-            self.profile[profile_index]['markers']['tieline'] = []
+            self.profile[profile_index]["markers"]["tieline"] = []
 
             self.reset_sampling_points()
             self.reset_sampling_areas()
@@ -125,23 +114,22 @@ class ProfileLineTool(QgsMapTool):
             profile_index = self.profile_line_index
 
         # add coordinates
-        self.profile[profile_index]['point'].append(point)
+        self.profile[profile_index]["point"].append(point)
 
-        rb = self.profile[profile_index]['markers']
+        rb = self.profile[profile_index]["markers"]
 
         # add rubberband line
         # if not end_point:
-        rb['line'].addPoint(point, True)
+        rb["line"].addPoint(point, True)
 
         # add rubberband vertex with icon shape
         vtx = self.get_vertex_rb(profile_index, point, end_point)
-        rb['vertex'].append(vtx)
+        rb["vertex"].append(vtx)
 
     def terminate_profile(self, pt=None):
         if pt:
             # add end-point vertex
-            self.add_point(pt, end_point=True,
-                           profile_index=self.profile_line_index)
+            self.add_point(pt, end_point=True, profile_index=self.profile_line_index)
         # emit terminated event
         self.proflineterminated.emit()
         # set teminaetd status
@@ -190,7 +178,7 @@ class ProfileLineTool(QgsMapTool):
     def canvasMoveEvent(self, event):
         if self.terminated:
             return
-        rb_line = self.profile[self.profile_line_index]['markers']['line']
+        rb_line = self.profile[self.profile_line_index]["markers"]["line"]
         plen = rb_line.numberOfVertices()
         if plen > 0:
             pt = event.mapPoint()
@@ -198,7 +186,6 @@ class ProfileLineTool(QgsMapTool):
         return
 
     def canvasReleaseEvent(self, event):
-
         if self.flag_double_clicked:
             self.flag_double_clicked = False
             return
@@ -232,7 +219,7 @@ class ProfileLineTool(QgsMapTool):
     def get_profile_points(self, profile_index=None):
         if profile_index is None:
             profile_index = self.profile_line_index
-        return [[pt.x(), pt.y()] for pt in self.profile[profile_index]['point']]
+        return [[pt.x(), pt.y()] for pt in self.profile[profile_index]["point"]]
 
     def hide_profile_line(self):
         self.profile_line_points = self.get_all_profile_points()
@@ -257,18 +244,18 @@ class ProfileLineTool(QgsMapTool):
         myColor = [
             QColor(255, 255, 100, 200),  # Profile Line 1
             QColor(100, 255, 255, 200),  # Profile Line 2
-            QColor(255, 100, 255, 200)  # Profile Line 3
+            QColor(255, 100, 255, 200),  # Profile Line 3
         ]
         for pIndex in range(len(pts)):
             color = myColor[pIndex]
             color.setAlpha(150)
             for pt in pts[pIndex]:
-                tl = QgsRubberBand(self.canvas, True)
+                tl = QgsRubberBand(self.canvas, QgsWkbTypes.LineGeometry)
                 tl.setWidth(1)
                 tl.setColor(color)
                 tl.addPoint(QgsPointXY(*pt[0]), True)
                 tl.addPoint(QgsPointXY(*pt[1]), True)
-                self.profile[pIndex]['markers']['tieline'].append(tl)
+                self.profile[pIndex]["markers"]["tieline"].append(tl)
 
     def init_tracking_marker(self):
         """create a trace marker on profile line"""
@@ -356,10 +343,10 @@ class ProfileLineTool(QgsMapTool):
             rb.addPoint(QgsPointXY(*pt[0]))
             rb.setColor(myColor)
             rb.setWidth(2)
-            self.profile[profile_index]['markers']['sampling_area'].append(rb)
+            self.profile[profile_index]["markers"]["sampling_area"].append(rb)
 
     def add_sampling_points(self, profile_index, pts, color=None):
-        """ add sampling point markers to the canvas """
+        """add sampling point markers to the canvas"""
 
         if not profile_index:
             profile_index = self.profile_line_index
@@ -373,26 +360,25 @@ class ProfileLineTool(QgsMapTool):
             for p1 in pt:  # scan within same d (horizontal)
                 qpt = QgsPointXY(*p1)
                 vm = self.get_base_sampling_point_vertex_marker(my_color, qpt)
-                self.profile[profile_index]['markers']['sampling_point'].append(
-                    vm)
+                self.profile[profile_index]["markers"]["sampling_point"].append(vm)
 
     def reset_sampling_points(self, profile_index=None):
         if profile_index is None:
             profile_index = self.profile_line_index
-        [self.scene.removeItem(
-            pt) for pt in self.profile[profile_index]['markers']['sampling_point']]
-        self.profile[profile_index]['markers']['sampling_point'] = []
+        [self.scene.removeItem(pt) for pt in self.profile[profile_index]["markers"]["sampling_point"]]
+        self.profile[profile_index]["markers"]["sampling_point"] = []
 
     def reset_sampling_areas(self, profile_index=None):
         if profile_index is None:
             profile_index = self.profile_line_index
-        [rect.reset() and self.scene.removeItem(rect)
-         for rect in self.profile[profile_index]['markers']['sampling_area']]
-        self.profile[profile_index]['markers']['sampling_area'] = []
+        [
+            rect.reset() and self.scene.removeItem(rect)
+            for rect in self.profile[profile_index]["markers"]["sampling_area"]
+        ]
+        self.profile[profile_index]["markers"]["sampling_area"] = []
 
     def reset_tielines(self, profile_index=None):
         if profile_index is None:
             profile_index = self.profile_line_index
-        [tie.reset() and self.scene.removeItem(tie)
-         for tie in self.profile[profile_index]['markers']['tieline']]
-        self.profile[profile_index]['markers']['tieline'] = []
+        [tie.reset() and self.scene.removeItem(tie) for tie in self.profile[profile_index]["markers"]["tieline"]]
+        self.profile[profile_index]["markers"]["tieline"] = []
