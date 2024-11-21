@@ -1078,6 +1078,7 @@ class LineProfile:
 
     def get_pixel_size(self, alignment):
         px_size: float = 0
+
         if "scale" in alignment[0]:
             # old format
             # scale of the first set of reference points
@@ -1089,10 +1090,13 @@ class LineProfile:
             combs = combinations(range(alignment_n), 2)
             pxsize_list = []
             for c in combs:
+                if alignment[c[0]]["used"] == 0 or alignment[c[1]]["used"] == 0:
+                    continue
                 stage_distance = self.get_distance(pt1=alignment[c[0]]["stage"][0], pt2=alignment[c[1]]["stage"][0])
                 canvas_distance = self.get_distance(pt1=alignment[c[0]]["canvas"][0], pt2=alignment[c[1]]["canvas"][0])
                 pxsize_list.append(stage_distance / canvas_distance)
             px_size = sum(pxsize_list) / len(pxsize_list)
+
         return px_size
 
     def sanitizePath(self, path):
