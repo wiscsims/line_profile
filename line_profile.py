@@ -26,6 +26,7 @@ import os
 import os.path
 import re
 import json
+import math
 from functools import reduce
 
 from qgis.PyQt.QtGui import QIcon
@@ -1064,8 +1065,27 @@ class LineProfile:
         )
         with open(align_file, "r") as f:
             alignment = json.load(f)
-            px_size = 1 / alignment[0]["scale"]
+            px_size = self.get_pixel_size(alignment)
             self.dock.Spn_PixelSize.setValue(px_size)
+
+    def get_distance(self, pt1, pt2):
+        # pt1 = [x1, y1]
+        # pt2 = [x2, y2]
+        a = math.pow(pt2[0] - pt1[0], 2)
+        b = math.pow(pt2[1] - pt1[1], 2)
+        return math.sqrt(a + b)
+
+    def get_pixel_size(self, alignment):
+        px_size: float = 0
+        if "scale" in alignment[0]:
+            # old format
+            px_size = 1 / alignment[0]["scale"]
+        else:
+            # new version
+            stage_distance = self.get_distance(alignment[1]["stage"][0], alignment[0]["stage"][0])
+            canvas_distance = self.get_distance(alignment[1]["canvas"][0], alignment[0]["canvas"][0])
+            px_size = stage_distance / canvas_distance
+        return px_size
 
     def sanitizePath(self, path):
         path = os.path.expanduser(path)
