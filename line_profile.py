@@ -1007,10 +1007,10 @@ class LineProfile:
             myD = []
             myL = 0
             out = []
-            fileType = os.path.splitext(fileName)
-            if fileType == ".txt":
+            _, file_format = os.path.splitext(fileName)
+            if file_format == ".txt":
                 sep = "\t"
-            elif fileType == ".csv":
+            elif file_format == ".csv":
                 sep = ","
             else:
                 sep = " "
