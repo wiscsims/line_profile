@@ -27,6 +27,7 @@ import os.path
 import re
 import json
 import math
+from itertools import combinations
 from functools import reduce
 
 from qgis.PyQt.QtGui import QIcon
@@ -1079,12 +1080,19 @@ class LineProfile:
         px_size: float = 0
         if "scale" in alignment[0]:
             # old format
+            # scale of the first set of reference points
             px_size = 1 / alignment[0]["scale"]
         else:
             # new version
-            stage_distance = self.get_distance(alignment[1]["stage"][0], alignment[0]["stage"][0])
-            canvas_distance = self.get_distance(alignment[1]["canvas"][0], alignment[0]["canvas"][0])
-            px_size = stage_distance / canvas_distance
+            # average px_size with all combinations of ref points
+            alignment_n = len(alignment)
+            combs = combinations(range(alignment_n), 2)
+            pxsize_list = []
+            for c in combs:
+                stage_distance = self.get_distance(pt1=alignment[c[0]]["stage"][0], pt2=alignment[c[1]]["stage"][0])
+                canvas_distance = self.get_distance(pt1=alignment[c[0]]["canvas"][0], pt2=alignment[c[1]]["canvas"][0])
+                pxsize_list.append(stage_distance / canvas_distance)
+            px_size = sum(pxsize_list) / len(pxsize_list)
         return px_size
 
     def sanitizePath(self, path):
