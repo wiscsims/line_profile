@@ -68,10 +68,10 @@ Manual installation is also available.
 
 ## Quick Start
 
-- Select a layer from the layer panel.
-- Hit `Add Data` button, then choose an item you want to plot.
+- Select a data layer from the layer panel in the QGIS window.
+- Hit `Add Data` button from Line Profile panel, then choose an item you want to plot.
 - Make a profile line with:
-  - Click on canvas to start your profile line (circle marker: ●).
+  - Left click on canvas to start your profile line (circle marker: ●).
   - You can add vertics by clicking on canvas (●).
   - Right click on canvas to terminate the profile line (square marker: ■).
 - Done! 🎉 - The line profile is generated automatically.
