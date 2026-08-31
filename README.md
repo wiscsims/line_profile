@@ -112,9 +112,53 @@ A marker on the profile line indicating the location of the data in the plot. `D
 
 ### Peak / Valley Detection
 
-Select a plotted raster profile, then use **Auto Detect** to find peaks and valleys or use **+ Peak**, **+ Valley**, and **Delete** to curate points directly on the plot. Manual additions snap to a local extremum within the configured sample range. Points are synchronized with temporary map markers and can be exported to a QGIS memory point layer.
+Peak / Valley Detection finds local maxima and minima in a plotted raster profile. Peaks are shown as red upward triangles and valleys as blue downward triangles on the plot. Corresponding markers can also be displayed on the QGIS map.
 
-Automatic detection uses SciPy. SciPy is optional and is loaded only when **Auto Detect** is requested. If it is unavailable, Line Profile asks before installing it into the active QGIS user's `python/dependencies` directory; manual editing remains available without SciPy.
+#### Automatic detection
+
+1. Add a raster band with **Add Data** and draw a profile line.
+2. In **Peak / Valley Detection**, choose the plotted raster series from **Data**.
+3. Enable **Detect Peaks**, **Detect Valleys**, or both.
+4. Adjust the detection parameters described below.
+5. Click **Auto Detect**. Change the parameters and click it again to replace the previous automatic results for the current profile and data series. Manually added points are preserved.
+
+The **Data** list contains only checked raster series that are currently available to the plot. Detection is performed independently for each continuous run of valid samples, so a NoData gap is never treated as part of a peak or valley.
+
+| Parameter | Default | Meaning |
+| --- | ---: | --- |
+| **Detect Peaks** | On | Detect local maxima in the profile. |
+| **Detect Valleys** | On | Detect local minima by applying the same detection logic to the inverted profile. Reported values remain the original, non-inverted values. |
+| **Prominence** | `0` | Minimum vertical prominence in intensity units. A larger value rejects small bumps whose height relative to the surrounding baseline is too small. `0` applies no prominence constraint. |
+| **Min distance** | `1` | Minimum separation between detected features, measured in profile samples. A larger value suppresses closely spaced detections. This is a sample count, not map distance. |
+| **Min width** | `0` | Minimum feature width in profile samples. Width is measured by SciPy at approximately half of the feature prominence. A larger value rejects narrow features. `0` applies no width constraint. |
+| **Smoothing σ** | `0` | Standard deviation of Gaussian smoothing, measured in profile samples. A larger value reduces high frequency noise but can merge nearby features. `0` disables smoothing. Smoothing affects detection only; stored distance and intensity values come from the original profile. |
+
+Automatic detection uses SciPy. SciPy is loaded only when **Auto Detect** is requested. If it is unavailable, Line Profile asks for permission before installing it into the active QGIS user's `python/dependencies` directory. Manual editing remains available without SciPy.
+
+For a noisy profile, first increase **Prominence** slightly. If noise still produces clusters of points, increase **Min distance** or use a small **Smoothing σ**. If a real narrow feature is missing, reduce **Min width** or disable it with `0`.
+
+#### Manual editing
+
+Choose a mode and left click the profile plot:
+
+| Mode | Behavior |
+| --- | --- |
+| **Select** | Does not change Peak or Valley records. This is the default mode. |
+| **+ Peak** | Finds the largest raw value within **Snap ±** samples of the click and adds a manual peak there. |
+| **+ Valley** | Finds the smallest raw value within **Snap ±** samples of the click and adds a manual valley there. |
+| **Delete** | Deletes the nearest automatic or manual point when it is within **Snap ±** samples of the click. |
+
+**Snap ±** defaults to `5` samples. This means an addition searches from five samples before the clicked sample through five samples after it, clipped at the ends of the profile. You do not need to click the exact peak or valley. Adding the same classification at the same sample does not create a duplicate. Adding the opposite classification at that sample reclassifies it as the newly selected manual type.
+
+Manual points survive **Auto Detect** and **Clear Auto**. They are cleared when **Clear All** is confirmed or when the associated profile geometry or raster sampling configuration changes so that the saved sample positions are no longer valid.
+
+#### Display, clearing, and output
+
+- **Show points on map** shows or hides markers for the current profile and selected raster series without deleting the records.
+- **Clear Auto** removes only automatic records for the current profile and selected raster series. Manual points remain.
+- **Clear All** removes all stored Peak and Valley records. Confirmation is required when manual records exist.
+- The point count applies to the current profile and selected raster series.
+- **Create Point Layer** creates a temporary QGIS memory layer named `Line Profile Peaks Valleys`. It includes all stored records and the fields `feature_id`, `type`, `source`, `profile`, `data`, `raster_id`, `sample_idx`, `distance`, `value`, `prominence`, and `width`. Save or export this memory layer if it must persist after the QGIS project is closed.
 
 ### Save Plot
 
