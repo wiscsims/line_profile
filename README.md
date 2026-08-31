@@ -16,11 +16,13 @@ A QGIS plugin for creating line profiles from vector and raster layers.
   - [Profile Lines](#profile-lines)
   - [Tieline](#tieline)
   - [Tracking Marker](#tracking-marker)
+  - [Peak / Valley Detection](#peak--valley-detection)
   - [Save Plot](#save-plot)
 - [Options](#options)
   - [Export Data](#export-data)
   - [Import/Export Profile Line](#import/export-profile-line)
   - [Scaling](#scaling)
+- [Manual QGIS Test](#manual-qgis-test)
 - [Developmental Features](#developmental-features)
   - [Checking sampling points and area visually](#checking-sampling-points-and-area-visually)
   - [Normalize to `Profile Line 1`](#normalize-to-`profile-line-1`)
@@ -29,7 +31,7 @@ A QGIS plugin for creating line profiles from vector and raster layers.
 
 ## Requirement
 
-- QGIS (ver. 3.10+).
+- QGIS 3.10 or newer. The plugin metadata declares the same minimum version.
 
 For `QGIS 2` users, use [older version]('htts://github.com/saburo/LineProfile_QGIS2').
 
@@ -108,6 +110,12 @@ A thin yellow line indicating where the each data point in the vector layer is p
 
 A marker on the profile line indicating the location of the data in the plot. `Default: Off`.
 
+### Peak / Valley Detection
+
+Select a plotted raster profile, then use **Auto Detect** to find peaks and valleys or use **+ Peak**, **+ Valley**, and **Delete** to curate points directly on the plot. Manual additions snap to a local extremum within the configured sample range. Points are synchronized with temporary map markers and can be exported to a QGIS memory point layer.
+
+Automatic detection uses SciPy. SciPy is optional and is loaded only when **Auto Detect** is requested. If it is unavailable, Line Profile asks before installing it into the active QGIS user's `python/dependencies` directory; manual editing remains available without SciPy.
+
 ### Save Plot
 
 Plots can be saved as raster or vector file with various format (jpg, png, pdf, svg).
@@ -126,9 +134,19 @@ TBU
 
 ### Scaling
 
-Pixel size (px/map unit) can be set manually. You can also import alignment files which you used in WiscSIMS session to set pixel size.
+Pixel size (px/map unit) can be set manually. You can also import alignment files which you used in WiscSIMS session to set pixel size. For non-square raster pixels, full-resolution sampling uses the finer of the raster X/Y resolutions so the profile is not undersampled.
 
 Profile lines are also exportable as shape file. You can reproduce the profile line and plots.
+
+## Manual QGIS Test
+
+On macOS with QGIS installed in `/Applications/QGIS.app`, run:
+
+```sh
+tests/run_qgis_manual_test.sh
+```
+
+The launcher uses an isolated QGIS profile under `/private/tmp`, loads this working tree directly, and creates a sample raster, vector points, and a horizontal profile. Use **Auto Detect**, the manual point tools, **Clear Auto**, and **Create Point Layer** to exercise the complete peak/valley workflow without changing the normal QGIS profile.
 
 ## Developmental Features
 

@@ -10,15 +10,20 @@ import numpy as np
 
 class PlottingTool:
 
-    def __init__(self, model, tracker):
+    def __init__(self, model, tracker, feature_click_handler=None):
         self.fig = None
         self.host = None
         self.par = []
         self.plotWidget = None
         self.model = model
         self.mcv = None
-        self.cid = None
+        self.motion_cid = None
+        self.click_cid = None
         self.tracker = tracker
+        self.feature_click_handler = feature_click_handler
+
+    def set_feature_click_handler(self, handler):
+        self.feature_click_handler = handler
 
     def getPlotWidget(self):
         bgColor = u'#F9F9F9'
@@ -92,7 +97,8 @@ class PlottingTool:
     def calculateMovingAverage(self, data, N=10):
         offset = 0 if N % 2.0 else 1
         n2 = int(N / 2.0)
-        maY = np.convolve(data[1], np.ones((N,)) / N, mode='valid')
+        values = np.asarray(data[1], dtype=float)
+        maY = np.convolve(values, np.ones((N,)) / N, mode='valid')
         maX = data[0][n2:len(data[0]) - n2 + offset]
         return (maX, maY)
 
@@ -119,6 +125,9 @@ class PlottingTool:
         pLineNorm_by_segment = opt['pLineNormalizedBySegment']
         pLineNorm_base_index = 0
         ppc = opt['profilePlotConverter']
+        feature_records = opt.get('featureRecords', [])
+        feature_profile_index = opt.get('featureProfileIndex')
+        feature_raster_layer_id = opt.get('featureRasterLayerId')
 
         dps = 'distance_pixel_sized'
 
@@ -205,20 +214,20 @@ class PlottingTool:
                 """ normalization """
                 # normalizing data (x values) by base profile line
                 # (default - currently fixed: Profile Line 1)
+                plot_x = list(dd['data'][0])
                 if pLineNorm:
-                    tmp = []
                     if pLineNorm_by_segment:
                         # apply segmment specific normilization factor to x values
-                        tmp = [ppc.profileX_to_plotX(x, pIndex) for x in dd['data'][0]]
+                        plot_x = [ppc.profileX_to_plotX(x, pIndex) for x in plot_x]
                     else:
                         # apply normalizatin factor of each profile line
-                        tmp = [x * normFactor[pIndex] for x in dd['data'][0]]
+                        plot_x = [x * normFactor[pIndex] for x in plot_x]
 
-                    dd['data'][0] = tmp
+                plot_data = [plot_x, dd['data'][1]]
 
                 """ moving average """
                 if d['layer_type'] and d['configs']['movingAverage']:
-                    self.movingAverage(myAx, dd['data'], dd['color_org'],
+                    self.movingAverage(myAx, plot_data, dd['color_org'],
                                        dd['configs']['movingAverageN'],
                                        linestyles[pIndex])
 
@@ -228,7 +237,7 @@ class PlottingTool:
                 marker_size = d['configs']['plotOptions']['symbolSize']
                 line_type = d['configs']['plotOptions']['lineType']
                 line_width = d['configs']['plotOptions']['lineWidth']
-                my_tmp_Plot, = myAx.plot(dd['data'][0], dd['data'][1],
+                my_tmp_Plot, = myAx.plot(plot_x, dd['data'][1],
                                          label=dd['label'], color=color,
                                          linestyle=linestyles[pIndex],
                                          linewidth=line_width,
@@ -236,6 +245,39 @@ class PlottingTool:
                                          # markersize=self.getMarkerSize(10, len(dd['data'][0])))
                                          markersize=marker_size)
                 tmpPlot.append(my_tmp_Plot)
+
+                if (
+                    pIndex == feature_profile_index
+                    and dd.get('raster_layer_id') == feature_raster_layer_id
+                    and feature_records
+                ):
+                    for kind, marker, color in (
+                        ('peak', '^', '#dc2828'),
+                        ('valley', 'v', '#285adc'),
+                    ):
+                        selected = [record for record in feature_records if record['kind'] == kind]
+                        if selected:
+                            marker_x = []
+                            for record in selected:
+                                value = record['distance']
+                                if pLineNorm:
+                                    value = (
+                                        ppc.profileX_to_plotX(value, pIndex)
+                                        if pLineNorm_by_segment
+                                        else value * normFactor[pIndex]
+                                    )
+                                marker_x.append(value)
+                            myAx.scatter(
+                                marker_x,
+                                [record['value'] for record in selected],
+                                marker=marker,
+                                color=color,
+                                edgecolors='white',
+                                linewidths=0.6,
+                                s=45,
+                                zorder=10,
+                                label='_nolegend_',
+                            )
 
             myPlot.append(tmpPlot)
             #
@@ -260,9 +302,6 @@ class PlottingTool:
                 myAx.axis["left"].major_ticklabels.set_fontsize(8)
                 myAx.axis["left"].label.set_color(d['color_org'])
 
-                # add event listener for marker
-                self.cid = self.mcv.mpl_connect(
-                    'motion_notify_event', lambda event: self.tracker(event, normFactor))
             else:  # parasite axis (right side)
                 myAx.axis["right"].major_ticklabels.set_fontsize(8)
                 myAx.axis["right"].label.set_fontsize(10)
@@ -307,19 +346,29 @@ class PlottingTool:
         myMargin = (myRange[3] - myRange[2]) * AxisPadding
         self.host.set_ylim(myRange[2] - myMargin, myRange[3] + myMargin)
 
+        self.motion_cid = self.mcv.mpl_connect(
+            'motion_notify_event', lambda event: self.tracker(event, normFactor))
+        if self.feature_click_handler is not None:
+            self.click_cid = self.mcv.mpl_connect(
+                'button_press_event',
+                lambda event: self.feature_click_handler(event, normFactor),
+            )
+
         self.plotWidget.draw()
 
     def resetPlot(self, clearAll=False):
-        if self.cid:
-            self.mcv.mpl_disconnect(self.cid)
-        try:
+        if self.motion_cid:
+            self.mcv.mpl_disconnect(self.motion_cid)
+            self.motion_cid = None
+        if self.click_cid:
+            self.mcv.mpl_disconnect(self.click_cid)
+            self.click_cid = None
+        if self.host is not None:
             self.fig.delaxes(self.host)
             self.host.clear()
             [i.cla() for i in self.par]
             if clearAll:
                 self.mcv.draw()
-        except Exception:
-            pass
         self.host = self.fig.add_axes(AA.SubplotHost(self.fig, 111))
 
     def savePlot(self, fileName):

@@ -101,7 +101,7 @@ class MyTableViewModel(QStandardItemModel):
             if cColor in myColors:
                 usedColors.append(myColors.index(cColor))
         usedColors = list(set(usedColors))
-        if len(usedColors) == 0 or len(usedColors) is len(myColors):
+        if len(usedColors) == 0 or len(usedColors) == len(myColors):
             return myColors[0]
         for i in range(len(myColors)):
             if i not in usedColors:

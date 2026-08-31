@@ -7,3 +7,7 @@ __pycache__/
 .vim/**
 
 tags
+
+# Local implementation specifications
+Line_Profile_Codex_Master_Implementation_Spec.md
+Line_Profile_Phase0_Debug_Refactor_Spec.md

@@ -121,7 +121,7 @@
         <item>
          <widget class="QWidget" name="widget_3" native="true">
           <property name="sizePolicy">
-           <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+           <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
@@ -162,8 +162,112 @@
              <property name="alignment">
               <set>Qt::AlignCenter</set>
              </property>
-            </widget>
-           </item>
+           </widget>
+          </item>
+          <item>
+           <widget class="QGroupBox" name="Grp_PeakDetection">
+            <property name="maximumSize">
+             <size><width>320</width><height>16777215</height></size>
+            </property>
+            <property name="title">
+             <string>Peak / Valley Detection</string>
+            </property>
+            <property name="checkable">
+             <bool>true</bool>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+            <layout class="QGridLayout" name="gridLayout_PeakDetection">
+             <property name="spacing">
+              <number>3</number>
+             </property>
+             <property name="leftMargin">
+              <number>4</number>
+             </property>
+             <property name="topMargin">
+              <number>4</number>
+             </property>
+             <property name="rightMargin">
+              <number>4</number>
+             </property>
+             <property name="bottomMargin">
+              <number>4</number>
+             </property>
+             <item row="0" column="0">
+              <widget class="QLabel" name="Lbl_PeakDataSource">
+               <property name="text"><string>Data:</string></property>
+              </widget>
+             </item>
+             <item row="0" column="1" colspan="3">
+              <widget class="QComboBox" name="Cmb_PeakDataSource"/>
+             </item>
+             <item row="1" column="0" colspan="2">
+              <widget class="QCheckBox" name="Chk_DetectPeaks">
+               <property name="text"><string>Detect Peaks</string></property>
+               <property name="checked"><bool>true</bool></property>
+              </widget>
+             </item>
+             <item row="1" column="2" colspan="2">
+              <widget class="QCheckBox" name="Chk_DetectValleys">
+               <property name="text"><string>Detect Valleys</string></property>
+               <property name="checked"><bool>true</bool></property>
+              </widget>
+             </item>
+             <item row="2" column="0"><widget class="QLabel" name="Lbl_Prominence"><property name="text"><string>Prominence</string></property></widget></item>
+             <item row="2" column="1">
+              <widget class="QDoubleSpinBox" name="Spn_Prominence">
+               <property name="toolTip"><string>Intensity units; 0 means unconstrained</string></property>
+               <property name="decimals"><number>3</number></property>
+               <property name="maximum"><double>999999999.000000000000000</double></property>
+              </widget>
+             </item>
+             <item row="2" column="2"><widget class="QLabel" name="Lbl_MinPeakDistance"><property name="text"><string>Min distance</string></property></widget></item>
+             <item row="2" column="3">
+              <widget class="QSpinBox" name="Spn_MinPeakDistance">
+               <property name="toolTip"><string>Number of profile samples</string></property>
+               <property name="minimum"><number>1</number></property>
+               <property name="maximum"><number>999999</number></property>
+               <property name="value"><number>1</number></property>
+              </widget>
+             </item>
+             <item row="3" column="0"><widget class="QLabel" name="Lbl_MinPeakWidth"><property name="text"><string>Min width</string></property></widget></item>
+             <item row="3" column="1">
+              <widget class="QDoubleSpinBox" name="Spn_MinPeakWidth">
+               <property name="toolTip"><string>Number of profile samples; 0 means unconstrained</string></property>
+               <property name="decimals"><number>2</number></property>
+               <property name="maximum"><double>999999.000000000000000</double></property>
+              </widget>
+             </item>
+             <item row="3" column="2"><widget class="QLabel" name="Lbl_SmoothingSigma"><property name="text"><string>Smoothing σ</string></property></widget></item>
+             <item row="3" column="3">
+              <widget class="QDoubleSpinBox" name="Spn_SmoothingSigma">
+               <property name="toolTip"><string>Gaussian sigma in profile samples; 0 means no smoothing</string></property>
+               <property name="decimals"><number>2</number></property>
+               <property name="maximum"><double>9999.000000000000000</double></property>
+              </widget>
+             </item>
+             <item row="4" column="0" colspan="2"><widget class="QPushButton" name="Btn_AutoDetect"><property name="text"><string>Auto Detect</string></property></widget></item>
+             <item row="4" column="2" colspan="2"><widget class="QPushButton" name="Btn_ClearAuto"><property name="text"><string>Clear Auto</string></property></widget></item>
+             <item row="5" column="0"><widget class="QPushButton" name="Btn_ModeSelect"><property name="text"><string>Select</string></property><property name="checkable"><bool>true</bool></property><property name="checked"><bool>true</bool></property></widget></item>
+             <item row="5" column="1"><widget class="QPushButton" name="Btn_ModeAddPeak"><property name="text"><string>+ Peak</string></property><property name="checkable"><bool>true</bool></property></widget></item>
+             <item row="5" column="2"><widget class="QPushButton" name="Btn_ModeAddValley"><property name="text"><string>+ Valley</string></property><property name="checkable"><bool>true</bool></property></widget></item>
+             <item row="5" column="3"><widget class="QPushButton" name="Btn_ModeDelete"><property name="text"><string>Delete</string></property><property name="checkable"><bool>true</bool></property></widget></item>
+             <item row="6" column="0"><widget class="QLabel" name="Lbl_SnapRange"><property name="text"><string>Snap ±</string></property></widget></item>
+             <item row="6" column="1">
+              <widget class="QSpinBox" name="Spn_SnapRange">
+               <property name="toolTip"><string>Snap/search tolerance in samples</string></property>
+               <property name="maximum"><number>99999</number></property>
+               <property name="value"><number>5</number></property>
+              </widget>
+             </item>
+             <item row="6" column="2" colspan="2"><widget class="QLabel" name="Lbl_FeatureCount"><property name="text"><string>0 points</string></property><property name="alignment"><set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set></property></widget></item>
+             <item row="7" column="0" colspan="4"><widget class="QCheckBox" name="Chk_ShowFeaturePoints"><property name="text"><string>Show points on map</string></property><property name="checked"><bool>true</bool></property></widget></item>
+             <item row="8" column="0" colspan="2"><widget class="QPushButton" name="Btn_ClearAllFeatures"><property name="text"><string>Clear All</string></property></widget></item>
+             <item row="8" column="2" colspan="2"><widget class="QPushButton" name="Btn_CreatePointLayer"><property name="text"><string>Create Point Layer</string></property></widget></item>
+            </layout>
+           </widget>
+          </item>
           </layout>
          </widget>
         </item>

@@ -1,6 +1,6 @@
 import unittest
 import random
-from tools.profilePlotConverter import ProfiilePlotConverter
+from tools.profilePlotConverter import ProfilePlotConverter, ProfiilePlotConverter
 
 pLines = [
     [
@@ -30,7 +30,7 @@ class ProfilePlotConverterTest(unittest.TestCase):
 
     def setUp(self):
         self.base_pLine_index = 0
-        self.p = ProfiilePlotConverter()
+        self.p = ProfilePlotConverter()
         self.p.set_pLines(pLines, self.base_pLine_index)
 
     def test_get_norm_factors(self):
@@ -64,6 +64,18 @@ class ProfilePlotConverterTest(unittest.TestCase):
             res.append(self.p.plotX_to_profileX(x, 1))
 
         self.assertEqual(res, data[1][0])
+
+    def test_fractional_round_trip(self):
+        raw_x = 125.25
+        plot_x = self.p.profileX_to_plotX(raw_x, 1)
+        self.assertAlmostEqual(self.p.plotX_to_profileX(plot_x, 1), raw_x)
+
+    def test_compatibility_alias(self):
+        self.assertIs(ProfiilePlotConverter, ProfilePlotConverter)
+
+    def test_zero_length_segment_is_rejected(self):
+        with self.assertRaises(ValueError):
+            self.p.set_pLines([[{'distance_pixel_sized': 0}]], 0)
 
     def test_set_pLines(self):
         """ set new profile lines """

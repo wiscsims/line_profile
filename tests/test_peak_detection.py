@@ -1,0 +1,93 @@
+import unittest
+
+from tools.peakDetectionTool import PeakDetectionTool
+
+
+def fake_find_peaks(signal, prominence=None, distance=None, width=None):
+    signal = [float(value) for value in signal]
+    candidates = [
+        index
+        for index in range(1, len(signal) - 1)
+        if signal[index] > signal[index - 1] and signal[index] > signal[index + 1]
+    ]
+    prominences = [
+        min(signal[index] - min(signal[: index + 1]), signal[index] - min(signal[index:]))
+        for index in candidates
+    ]
+    if prominence is not None:
+        filtered = [(index, value) for index, value in zip(candidates, prominences) if value >= prominence]
+        candidates = [item[0] for item in filtered]
+        prominences = [item[1] for item in filtered]
+    if distance is not None:
+        accepted = []
+        for index in sorted(candidates, key=lambda item: signal[item], reverse=True):
+            if all(abs(index - other) >= distance for other in accepted):
+                accepted.append(index)
+        candidates = sorted(accepted)
+        prominences = [
+            min(signal[index] - min(signal[: index + 1]), signal[index] - min(signal[index:]))
+            for index in candidates
+        ]
+    properties = {"prominences": prominences} if prominence is not None else {}
+    return candidates, properties
+
+
+def fake_gaussian_filter(signal, sigma):
+    padded = [0] + list(signal) + [0]
+    return [
+        0.25 * padded[index] + 0.5 * padded[index + 1] + 0.25 * padded[index + 2]
+        for index in range(len(signal))
+    ]
+
+
+class PeakDetectionToolTest(unittest.TestCase):
+    def setUp(self):
+        self.tool = PeakDetectionTool()
+        self.tool._scipy_functions = lambda: (fake_find_peaks, fake_gaussian_filter)
+
+    def test_detects_peaks_and_valleys(self):
+        y = [0, 1, 5, 1, 0, 2, 8, 2, 0]
+        result = self.tool.detect(list(range(len(y))), y)
+        self.assertEqual([item["sample_index"] for item in result["peak"]], [2, 6])
+        self.assertEqual([item["sample_index"] for item in result["valley"]], [4])
+
+    def test_prominence_filters_small_peak(self):
+        y = [0, 2, 0, 0, 6, 0]
+        result = self.tool.detect(range(len(y)), y, detect_valleys=False, prominence=3)
+        self.assertEqual([item["sample_index"] for item in result["peak"]], [4])
+
+    def test_distance_filters_nearby_peaks(self):
+        y = [0, 5, 0, 8, 0]
+        result = self.tool.detect(range(len(y)), y, detect_valleys=False, distance=3)
+        self.assertEqual([item["sample_index"] for item in result["peak"]], [3])
+
+    def test_smoothing_reports_raw_value(self):
+        y = [0, 0, 10, 0, 0]
+        result = self.tool.detect(range(len(y)), y, detect_valleys=False, smoothing_sigma=1)
+        self.assertEqual(result["peak"][0]["sample_index"], 2)
+        self.assertEqual(result["peak"][0]["value"], 10)
+
+    def test_manual_snap_and_edge_windows(self):
+        y = [4, 1, 7, 2, 5]
+        self.assertEqual(self.tool.snap_peak(y, 0, 2), 2)
+        self.assertEqual(self.tool.snap_valley(y, 4, 2), 3)
+        self.assertEqual(self.tool.snap_peak(y, 99, 1), 4)
+        self.assertEqual(self.tool.snap_valley([None, None], 0, 2), None)
+
+    def test_missing_values_split_detection_runs(self):
+        y = [0, 5, 0, None, 0, 6, 0]
+        result = self.tool.detect(range(len(y)), y, detect_valleys=False)
+        self.assertEqual([item["sample_index"] for item in result["peak"]], [1, 5])
+
+    def test_actual_scipy_find_peaks_when_available(self):
+        if not PeakDetectionTool.scipy_available():
+            self.skipTest("SciPy is not installed in this Python environment")
+        tool = PeakDetectionTool()
+        y = [0, 1, 5, 1, 0, 2, 8, 2, 0]
+        result = tool.detect(range(len(y)), y, prominence=2)
+        self.assertEqual([item["sample_index"] for item in result["peak"]], [2, 6])
+        self.assertEqual([item["sample_index"] for item in result["valley"]], [4])
+
+
+if __name__ == "__main__":
+    unittest.main()

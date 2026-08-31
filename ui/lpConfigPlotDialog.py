@@ -60,7 +60,7 @@ class LPConfigPlotDialog(QDialog, FORM_CLASS):
     def changePlotColor(self):
         curColor = self.model.getColor(self.row)
         newColor = QColorDialog().getColor(curColor)
-        if newColor.isValid() and newColor.name() is not curColor.name():
+        if newColor.isValid() and newColor.name() != curColor.name():
             self.model.setColor(self.row, newColor)
             self.setBGColor(self.plotColor, newColor)
 

@@ -6,7 +6,8 @@ from qgis.PyQt.QtWidgets import (
     QMessageBox,
     QInputDialog,
     QColorDialog,
-    QHeaderView
+    QHeaderView,
+    QButtonGroup,
 )
 from qgis.PyQt.QtCore import (
     Qt,
@@ -39,10 +40,22 @@ class DockWidget(QDockWidget, FORM_CLASS):
         self.model = model
         self.setupUi(self)
         self.initTableView()
+        self.initPeakDetectionControls()
         self.connectTable()
         self.tabWidget_2.setCurrentIndex(0)
         self.myFrame_2.hide()
         self.widget_3.show()
+
+    def initPeakDetectionControls(self):
+        self.peakModeGroup = QButtonGroup(self)
+        self.peakModeGroup.setExclusive(True)
+        for button in (
+            self.Btn_ModeSelect,
+            self.Btn_ModeAddPeak,
+            self.Btn_ModeAddValley,
+            self.Btn_ModeDelete,
+        ):
+            self.peakModeGroup.addButton(button)
 
     def connectTable(self):
         self.Btn_Add.clicked.connect(self.selectElement)
@@ -93,7 +106,7 @@ class DockWidget(QDockWidget, FORM_CLASS):
 
     def showSelectDialog(self, layer, row=-1):
         myList = []
-        dataType = "Attibute"  # or band
+        dataType = "Attribute"  # or band
         if layer.type() == layer.RasterLayer:  # Raster
             dataType = "Band"
             [myList.append('Band {}'.format(i + 1))
@@ -120,7 +133,7 @@ class DockWidget(QDockWidget, FORM_CLASS):
 
         if self.iface.activeLayer() is None:
             QMessageBox.warning(self.iface.mainWindow(),
-                                "test", "Please select one layer")
+                                "Line Profile", "Please select one layer")
             return
         else:
             cLayer = self.iface.activeLayer()
@@ -151,14 +164,14 @@ class DockWidget(QDockWidget, FORM_CLASS):
     def modifyTable(self, model_item_index):
 
         clickedCol = model_item_index.column()
-        if clickedCol is self.model.getColumnIndex('config'):
+        if clickedCol == self.model.getColumnIndex('config'):
             self.showConfigWindow(model_item_index)
-        elif clickedCol is self.model.getColumnIndex('state'):
+        elif clickedCol == self.model.getColumnIndex('state'):
             self.showHidePlot(model_item_index)
-        elif clickedCol is self.model.getColumnIndex('color'):
+        elif clickedCol == self.model.getColumnIndex('color'):
             self.changeColor(model_item_index)
         # or clickedCol is 2:
-        elif clickedCol is self.model.getColumnIndex('data'):
+        elif clickedCol == self.model.getColumnIndex('data'):
             self.changeData(model_item_index)
         else:
             return
@@ -173,7 +186,7 @@ class DockWidget(QDockWidget, FORM_CLASS):
         row = index.row()
         curColor = self.model.getColor(row)
         newColor = QColorDialog().getColor(curColor)
-        if newColor.isValid() and newColor.name() is not curColor.name():
+        if newColor.isValid() and newColor.name() != curColor.name():
             self.model.setColor(row, newColor)
 
     def changeData(self, index):

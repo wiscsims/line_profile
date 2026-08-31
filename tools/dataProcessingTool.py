@@ -16,6 +16,7 @@ class DataProcessingTool:
 
         self.sampling_points = []  # [{profile-1}, {profile-2'}]
         self.sampling_areas = []
+        self.profile_sample_centers = []
         """
         data structure of sampling_points
         each profile line has list of points data with layer_id
@@ -40,12 +41,15 @@ class DataProcessingTool:
         for n in range(n_profile_lines):
             self.sampling_points.append({})
             self.sampling_areas.append({})
+            self.profile_sample_centers.append({})
 
     def getProfileLines(self, profilePoints):
         out = []
         for i in range(len(profilePoints) - 1):
             pt1 = profilePoints[i]
             pt2 = profilePoints[i + 1]
+            if pt1 == pt2:
+                continue
             a, b = self.calcSlopeIntercept(pt1, pt2)
             out.append(
                 {
@@ -95,8 +99,9 @@ class DataProcessingTool:
             pt = f.geometry().asPoint()
             prjPoint = self.getProjectedPoint(pLines, pt, distLimit)
             if prjPoint is not False:
-                d = self.sumD(pLines[: prjPoint[2]])
+                d = sum(segment["distance"] for segment in pLines[: prjPoint[2]])
                 d += self.getDistance([prjPoint[0], prjPoint[1]], pLines[prjPoint[2]]["start"])
+                d *= self.pixel_size
                 x.append(d)
                 y.append(f.attribute(field))
 
@@ -105,56 +110,56 @@ class DataProcessingTool:
 
                 if distanceField:
                     f[distanceField] = d
-            layer.updateFeature(f)
+                if distanceField:
+                    layer.updateFeature(f)
 
         if distanceField:
             layer.commitChanges()
         x, y = self.sortDataByX(x, y)
 
-        x = [v * self.pixel_size for v in x]
-
         return [x, y]
 
     def sortDataByX(self, x, y):
-        sorted_x = list(x)
-        sorted_y = []
-        sorted_x.sort()
-        for i in sorted_x:
-            idx = x.index(i)
-            sorted_y.append(y[idx])
-            x[idx] = None
-        return sorted_x, sorted_y
+        pairs = sorted(zip(x, y), key=lambda pair: pair[0])
+        return [pair[0] for pair in pairs], [pair[1] for pair in pairs]
 
     def sumD(self, pLines):
         return reduce(lambda x, y: x + y["distance_pixel_sized"], pLines, 0.0)
 
     def getCurrentCoordinates(self, pLines, dist):
-        d = 0.0
-        for k, v in enumerate(pLines):
-            d += v["distance_pixel_sized"]
-            if dist < d:
-                dist -= d - v["distance_pixel_sized"]
-                break
-        cu = pLines[k]
-        # vertical
-        if cu["slope"] == float("inf"):
-            dX = 0
-            dY = dist / self.pixel_size
-        else:
-            dX = cos(atan(cu["slope"])) * dist / self.pixel_size
-            dY = cu["slope"] * dX
-        # +/- direction
-        tmp = 1 if cu["end"][1] > cu["start"][1] else -1
-        xDirection = 1 if cu["end"][0] > cu["start"][0] else -1
-        yDirection = tmp if cu["slope"] >= 0 else tmp * -1
-        x = cu["start"][0] + xDirection * dX
-        y = cu["start"][1] + yDirection * dY
+        if not pLines:
+            return None
+        if dist <= 0:
+            return list(pLines[0]["start"])
 
-        return [x, y]
+        total_distance = self.sumD(pLines)
+        if dist >= total_distance:
+            return list(pLines[-1]["end"])
+
+        traversed = 0.0
+        for segment in pLines:
+            segment_distance = segment["distance_pixel_sized"]
+            if segment_distance <= 0:
+                continue
+            segment_end = traversed + segment_distance
+            if dist <= segment_end:
+                fraction = (dist - traversed) / segment_distance
+                start = segment["start"]
+                end = segment["end"]
+                return [
+                    start[0] + (end[0] - start[0]) * fraction,
+                    start[1] + (end[1] - start[1]) * fraction,
+                ]
+            traversed = segment_end
+
+        return list(pLines[-1]["end"])
 
     def getRasterProfile(self, pLines, layer, band, fullRes, raster_layer_id, equiWidth=0, profile_index=None):
         if profile_index is None:
-            return
+            return [[], []]
+        if not pLines:
+            self.clear_profile_sample_centers(profile_index, raster_layer_id)
+            return [[], []]
 
         x = []
         y = []
@@ -168,7 +173,12 @@ class DataProcessingTool:
 
         dp = layer.dataProvider()
         band = int(band.replace("Band ", ""))
-        pixelSize = layer.rasterUnitsPerPixelX() if fullRes else 1
+        if fullRes:
+            pixel_sizes = [abs(layer.rasterUnitsPerPixelX()), abs(layer.rasterUnitsPerPixelY())]
+            pixel_sizes = [size for size in pixel_sizes if size > 0]
+            pixelSize = min(pixel_sizes) if pixel_sizes else 1
+        else:
+            pixelSize = 1
 
         # index number of current segment
         cP = 0
@@ -176,11 +186,11 @@ class DataProcessingTool:
         # current distance from the start point of the profile line
         current_d = 0
 
-        # total distance of profile line
-        total_d = self.sumD(pLines)
+        # Raw map distance. Values are converted to display units once below.
+        total_d = sum(segment["distance"] for segment in pLines)
 
         # max distance up to the current segment
-        current_seg_max_d = self.sumD(pLines[0 : cP + 1])
+        current_seg_max_d = sum(segment["distance"] for segment in pLines[0 : cP + 1])
 
         current_X, current_Y = pLines[cP]["start"]
         equiWidth = int(round(equiWidth / 2 / (pixelSize * self.pixel_size)))
@@ -203,7 +213,7 @@ class DataProcessingTool:
 
                     current_X, current_Y = pLines[cP]["start"]
                     # new max distance up to current segment
-                    current_seg_max_d = self.sumD(pLines[0 : cP + 1])
+                    current_seg_max_d = sum(segment["distance"] for segment in pLines[0 : cP + 1])
 
                 # set slope and directon of current segment
                 slope, direction = self.getDirectionSlope(pLines[cP])
@@ -240,15 +250,13 @@ class DataProcessingTool:
             """ get points within sampling width """
             equiPoints = self.getEquiPoints(current_X, current_Y, equiWidth, dX, dY)
 
-            tmpVal = 0
-
             """ sampling points by coordinates [x, y] """
             self.addSamplingRange(equiPoints)
-            for n in range(0, len(equiPoints)):
-                qgsPoint = QgsPointXY(*equiPoints[n])
-                tmpVal += self.getPointValue(dp, qgsPoint, band)
-
-            aveVal = tmpVal / len(equiPoints)
+            values = [
+                self.getPointValue(dp, QgsPointXY(*point), band)
+                for point in equiPoints
+            ]
+            aveVal = self.averageValidValues(values)
 
             y.append(aveVal)
             x.append(current_d)
@@ -266,15 +274,15 @@ class DataProcessingTool:
             endPoint = pLines[len(pLines) - 1]["end"]
             # qgsPoint = QgsPoint(curernt_X, current_Y)
             equiPoints = self.getEquiPoints(endPoint[0], endPoint[1], equiWidth, dX, dY)
-            tmpVal = 0
             self.addSamplingRange(equiPoints)
-            for n in range(0, len(equiPoints)):
-                qgsPoint = QgsPointXY(*equiPoints[n])
-                tmpVal += self.getPointValue(dp, qgsPoint, band)
-            aveVal = tmpVal / len(equiPoints)
+            values = [
+                self.getPointValue(dp, QgsPointXY(*point), band)
+                for point in equiPoints
+            ]
+            aveVal = self.averageValidValues(values)
             y.append(aveVal)
             x.append(total_d)
-            self.samplingPoints.append(endPoint)
+            self.samplingPoints.append(QgsPointXY(*endPoint))
 
         # apply pixel size
         x = [v * self.pixel_size for v in x]
@@ -283,8 +291,26 @@ class DataProcessingTool:
 
         self.sampling_points[profile_index][raster_layer_id] = self.getSamplingRange()
         self.sampling_areas[profile_index][raster_layer_id] = self.getSamplingArea()
+        centers = list(self.samplingPoints)
+        if not (len(x) == len(y) == len(centers)):
+            self.profile_sample_centers[profile_index].pop(raster_layer_id, None)
+            return [[], []]
+        self.profile_sample_centers[profile_index][raster_layer_id] = centers
 
         return [x, y]
+
+    def get_profile_sample_centers(self, profile_index, raster_layer_id):
+        if profile_index < 0 or profile_index >= len(self.profile_sample_centers):
+            return []
+        return list(self.profile_sample_centers[profile_index].get(raster_layer_id, []))
+
+    def clear_profile_sample_centers(self, profile_index, raster_layer_id=None):
+        if profile_index < 0 or profile_index >= len(self.profile_sample_centers):
+            return
+        if raster_layer_id is None:
+            self.profile_sample_centers[profile_index].clear()
+        else:
+            self.profile_sample_centers[profile_index].pop(raster_layer_id, None)
 
     def getEquiPoints(self, x, y, w, dx, dy):
         """Return points within sampling width (w)"""
@@ -299,10 +325,27 @@ class DataProcessingTool:
         return out
 
     def getPointValue(self, dp, point, band):
-        res = dp.identify(point, QgsRaster.IdentifyFormatValue).results()
-        return res[band] if res[band] is not None else 0
+        identify_result = dp.identify(point, QgsRaster.IdentifyFormatValue)
+        if identify_result is None:
+            return None
+        if hasattr(identify_result, "isValid") and not identify_result.isValid():
+            return None
+        results = identify_result.results()
+        if not results:
+            return None
+        if band not in results:
+            return None
+        value = results[band]
+        return None if value is None or value == NULL else value
+
+    @staticmethod
+    def averageValidValues(values):
+        valid_values = [value for value in values if value is not None and value != NULL]
+        return sum(valid_values) / len(valid_values) if valid_values else None
 
     def getProjectedPoint(self, pLines, pt, distLimit):
+        if not pLines:
+            return False
         minDist = 1.0e12
         tmpDist = 0.0
         x = None  # coordinate x
@@ -317,7 +360,7 @@ class DataProcessingTool:
                 tmpx = pLine["end"][0]
                 tmpy = pt[1]
             elif slope == 0:  # horizontal profile line
-                tmpx = pt[1]
+                tmpx = pt[0]
                 tmpy = pLine["end"][1]
             # point on profile line
             elif pt[1] == slope * pt[0] + intercept:
@@ -350,12 +393,14 @@ class DataProcessingTool:
         if x is None and cV["seg"] > -1:
             # vertex is the projjected point
             i = cV["seg"]
-            minDist = cV["distance"]
+            minDist = cV["distance"] * self.pixel_size
             x, y = pLines[i]["end"]
         elif x is not None and cV["seg"] > -1:
-            if cV["distance"] < minDist:
+            vertex_distance = cV["distance"] * self.pixel_size
+            if vertex_distance < minDist:
                 # vertex is closer than normal line
                 i = cV["seg"]
+                minDist = vertex_distance
                 x, y = pLines[i]["end"]
 
         if minDist > distLimit:

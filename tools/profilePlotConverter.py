@@ -1,5 +1,5 @@
 
-class ProfiilePlotConverter():
+class ProfilePlotConverter:
     """Convert profile x(d) value to plot x value and vice versa"""
 
     def __init__(self):
@@ -18,6 +18,10 @@ class ProfiilePlotConverter():
             Normalized factors, divs and divs_norm are calculated
         """
         self.pLines = pLines
+        if not pLines or base_pLine_index >= len(pLines):
+            raise ValueError("At least one profile line is required")
+        if any(not profile_line for profile_line in pLines):
+            raise ValueError("Profile lines must contain at least one segment")
         self.base_pIndex = base_pLine_index
         self.n_pLine = len(self.pLines)
         self.norm_factors = self.get_norm_factors()
@@ -37,8 +41,15 @@ class ProfiilePlotConverter():
         out = []
         for pIndex in range(self.n_pLine):
             pLpI = self.pLines[pIndex]
-            out.append([1.0 * base_p[seg_index][self.dps] / pLpI[seg_index][self.dps]
-                        for seg_index in range(n_seg)])
+            if len(pLpI) != n_seg:
+                raise ValueError("Profile lines must contain the same number of segments")
+            factors = []
+            for seg_index in range(n_seg):
+                denominator = pLpI[seg_index][self.dps]
+                if denominator == 0:
+                    raise ValueError("Profile segments must have non-zero length")
+                factors.append(1.0 * base_p[seg_index][self.dps] / denominator)
+            out.append(factors)
         return out
 
     def get_segment(self, x, seg_divs):
@@ -90,4 +101,8 @@ class ProfiilePlotConverter():
         divs = [0, *divs]
         divs_norm = [0, *divs_norm]
 
-        return int((x - divs_norm[seg]) / norm_factors[seg] + divs[seg])
+        return (x - divs_norm[seg]) / norm_factors[seg] + divs[seg]
+
+
+# Backward-compatible alias for older imports and third-party code.
+ProfiilePlotConverter = ProfilePlotConverter

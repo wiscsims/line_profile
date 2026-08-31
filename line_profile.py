@@ -46,6 +46,7 @@ from qgis.PyQt.QtWidgets import (
 )
 
 from qgis.core import (
+    Qgis,
     QgsProject,
     QgsVectorLayer,
     QgsField,
@@ -53,6 +54,8 @@ from qgis.core import (
     QgsGeometry,
     QgsVectorFileWriter,
     QgsPoint,
+    QgsPointXY,
+    QgsMessageLog,
 )
 
 # Initialize Qt resources from file resources.py
@@ -63,7 +66,10 @@ from .tools.plottingTool import PlottingTool
 from .tools.profileLineTool import ProfileLineTool
 from .tools.dataProcessingTool import DataProcessingTool
 from .tools.myTableViewModel import MyTableViewModel
-from .tools.profilePlotConverter import ProfiilePlotConverter
+from .tools.profilePlotConverter import ProfilePlotConverter
+from .tools.peakDetectionTool import PeakDetectionTool
+from .tools.featurePointStore import FeaturePointStore
+from .tools.dependencyManager import SciPyDependencyManager
 
 # Import UI (dock and dialogs)
 from .ui.dockWidget import DockWidget
@@ -130,9 +136,16 @@ class LineProfile:
 
         # instancialize tools
         self.profileLineTool = ProfileLineTool(self.canvas)
-        self.plotTool = PlottingTool(self.model, self.drawTracer)
+        self.plotTool = PlottingTool(self.model, self.drawTracer, self.handle_feature_plot_click)
         self.dpTool = DataProcessingTool(self.n_profile_lines)
-        self.ppc = ProfiilePlotConverter()
+        self.ppc = ProfilePlotConverter()
+        self.peakDetectionTool = PeakDetectionTool()
+        self.featurePointStore = FeaturePointStore()
+        self.scipyDependencyManager = SciPyDependencyManager()
+        self.feature_data_signatures = {}
+
+    def log_message(self, message, level=Qgis.Warning):
+        QgsMessageLog.logMessage(str(message), "Line Profile", level)
 
     # noinspection PyMethodMayBeStatic
 
@@ -272,15 +285,12 @@ class LineProfile:
 
             # set plugin state to deactivated
             self.pluginIsActive = False
-        except Exception:
-            pass
+        except (RuntimeError, TypeError) as error:
+            self.log_message("Plugin cleanup failed: {}".format(error))
 
-        try:
-            pass
-            # self.profileLineTool.resetProfileLine(all=True)
-            # self.profileLineTool.reset_all_profile()
-        except AttributeError:
-            print(str(AttributeError))
+        self.disconnectTools()
+        self.disconnectDock()
+        self.dock = None
 
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
@@ -292,8 +302,8 @@ class LineProfile:
         try:
             # self.profileLineTool.resetProfileLine(all=True)
             self.profileLineTool.reset_all_profile()
-        except AttributeError:
-            print(str(AttributeError))
+        except AttributeError as error:
+            self.log_message("Profile graphics cleanup failed: {}".format(error))
 
         for action in self.actions:
             self.iface.removePluginMenu(self.tr("&LineProfile"), action)
@@ -314,10 +324,7 @@ class LineProfile:
 
         self.pluginIsActive = True
 
-        try:
-            self.dock
-            # do nothing
-        except AttributeError:
+        if getattr(self, "dock", None) is None:
             # Create the dockwidget (after translation) and keep reference
             self.dock = DockWidget(self.iface.mainWindow(), self.iface, self.model)
             self.dock.showDockWidget()
@@ -335,6 +342,8 @@ class LineProfile:
         # self.refreshProfileLines()
         self.init_map_tool()
         self.profileLineTool.show_profile_line()
+        if self.dock.ChkBox_Tracer.isChecked():
+            self.profileLineTool.init_tracking_marker()
 
     def refreshProfileLines(self):
         self.profileLineTool.show_profile_line()
@@ -379,8 +388,8 @@ class LineProfile:
 
             # set plugin state to deactivated
             self.pluginIsActive = False
-        except Exception:
-            pass
+        except (RuntimeError, TypeError) as error:
+            self.log_message("Map tool cleanup failed: {}".format(error))
 
     def connectTools(self):
         self.profileLineTool.proflineterminated.connect(self.handle_terminate_profile_line)
@@ -388,16 +397,21 @@ class LineProfile:
 
     def disconnectTools(self):
         try:
-            self.profileLineTool.proflineterminated.disconnect(self.updatePlot)
+            self.profileLineTool.proflineterminated.disconnect(self.handle_terminate_profile_line)
+        except (RuntimeError, TypeError):
+            pass
+        try:
             self.profileLineTool.doubleClicked.disconnect(self.resetPlot)
-        except Exception:
+        except (RuntimeError, TypeError):
             pass
 
     def myConnect(self):
         self.updatePlot()
         self.update_area_sampling_list()
+        self.refresh_peak_data_sources()
 
     def connectDock(self):
+        self.disconnectTools()
         self.connectTools()
 
         self.disconnectDock()
@@ -427,6 +441,14 @@ class LineProfile:
 
         self.dock.Btn_OpenAlignmentFile.clicked.connect(self.import_alignment_file)
 
+        self.dock.Cmb_PeakDataSource.currentIndexChanged.connect(self.handle_peak_context_changed)
+        self.dock.Btn_AutoDetect.clicked.connect(self.handle_auto_detect)
+        self.dock.Btn_ClearAuto.clicked.connect(self.clear_auto_features)
+        self.dock.Chk_ShowFeaturePoints.stateChanged.connect(self.refresh_feature_map_markers)
+        self.dock.Btn_ClearAllFeatures.clicked.connect(self.clear_all_features)
+        self.dock.Btn_CreatePointLayer.clicked.connect(self.create_feature_point_layer)
+        QgsProject.instance().layersRemoved.connect(self.handle_project_layers_removed)
+
         # model
         self.model.itemChanged.connect(self.myConnect)
         self.model.rowsInserted.connect(self.myConnect)
@@ -435,36 +457,45 @@ class LineProfile:
         # timers
         self.timer_pixel_size_spin_box.timeout.connect(self.updatePlot)
         self.timer_resize_widget.timeout.connect(self.updatePlot)
+        self.refresh_peak_data_sources()
+        self.update_feature_count()
 
     def disconnectDock(self):
-        try:
-            self.dock.myExportProfileLineBtn.clicked.disconnect(self.openExportProfileLineDialog)
-            self.dock.Btn_ImportProfileLine.clicked.disconnect(self.openImportProfileLineDialog)
-            self.dock.Btn_ExportPlot.clicked.disconnect(self.exportPlot)
-            self.dock.ChkBox_TieLine.stateChanged.disconnect(self.updatePlot)
-            self.dock.ChkBox_ShowSamplingPoints.stateChanged.disconnect(self.updatePlot)
-            self.dock.ChkBox_ShowSamplingAreas.stateChanged.disconnect(self.updatePlot)
-            self.dock.Btn_ExportProfileData.clicked.disconnect(self.exportProfileData)
-            self.dock.CmbBox_ProfileLine.currentIndexChanged.disconnect(self.changeCurrentProfileLine)
-            # self.dock.Btn_ResetProfileLine.clicked.disconnect(self.addProfileLine)
-
-            self.dock.resizeEvent = None
-
-            # model
-            self.model.itemChanged.disconnect(self.myConnect)
-            self.model.rowsInserted.disconnect(self.myConnect)
-            self.model.rowsRemoved.disconnect(self.myConnect)
-
-        except Exception:
-            pass
+        connections = (
+            (self.dock.myExportProfileLineBtn.clicked, self.openExportProfileLineDialog),
+            (self.dock.Btn_ImportProfileLine.clicked, self.openImportProfileLineDialog),
+            (self.dock.Btn_ExportPlot.clicked, self.exportPlot),
+            (self.dock.ChkBox_TieLine.stateChanged, self.updatePlot),
+            (self.dock.ChkBox_ShowSamplingPoints.stateChanged, self.handle_sampling_point_display),
+            (self.dock.ChkBox_ShowSamplingAreas.stateChanged, self.handle_sampling_area_display),
+            (self.dock.Btn_ExportProfileData.clicked, self.exportProfileData),
+            (self.dock.CmbBox_ProfileLine.currentIndexChanged, self.changeCurrentProfileLine),
+            (self.dock.Cmb_PeakDataSource.currentIndexChanged, self.handle_peak_context_changed),
+            (self.dock.Btn_AutoDetect.clicked, self.handle_auto_detect),
+            (self.dock.Btn_ClearAuto.clicked, self.clear_auto_features),
+            (self.dock.Chk_ShowFeaturePoints.stateChanged, self.refresh_feature_map_markers),
+            (self.dock.Btn_ClearAllFeatures.clicked, self.clear_all_features),
+            (self.dock.Btn_CreatePointLayer.clicked, self.create_feature_point_layer),
+            (QgsProject.instance().layersRemoved, self.handle_project_layers_removed),
+            (self.model.itemChanged, self.myConnect),
+            (self.model.rowsInserted, self.myConnect),
+            (self.model.rowsRemoved, self.myConnect),
+        )
+        for signal, callback in connections:
+            try:
+                signal.disconnect(callback)
+            except (RuntimeError, TypeError):
+                continue
 
     def switch_plot_logo(self, show_plot):
         if show_plot:
             self.dock.myFrame_2.show()
-            self.dock.widget_3.hide()
+            self.dock.widget_3.show()
+            self.dock.label_2.hide()
         else:
             self.dock.myFrame_2.hide()
             self.dock.widget_3.show()
+            self.dock.label_2.show()
 
     def showConfigDialog(self, index):
         self.configPlotDialog = LPConfigPlotDialog(self.iface, self.model, index)
@@ -499,6 +530,13 @@ class LineProfile:
         self.model.updateFlag = True
         if removeRows or visRows:
             self.updatePlot()
+
+    def handle_project_layers_removed(self, *args):
+        self.refreshModel()
+        self.refresh_peak_data_sources()
+        self.clear_removed_feature_sources()
+        self.refresh_feature_map_markers()
+        self.update_feature_count()
 
     def save_plot(self):
         self.exportPlot()
@@ -568,18 +606,30 @@ class LineProfile:
 
         if self.canvas.layerCount() == 0 or self.model.rowCount() == 0:
             self.profileLineTool.reset_all_profile()
+            self.featurePointStore.clear_all()
+            self.feature_data_signatures.clear()
             # self.profileLineTool.resetProfileLine()
             self.plotTool.resetPlot(1)
             self.switch_plot_logo(False)
+            self.refresh_peak_data_sources()
+            self.update_feature_count()
             return
 
         profPoints = self.profileLineTool.get_all_profile_points()
+        for profile_index, points in enumerate(profPoints):
+            if len(points) < 2:
+                self.featurePointStore.clear_profile(profile_index)
+                self.dpTool.clear_profile_sample_centers(profile_index)
+                for key in [key for key in self.feature_data_signatures if key[0] == profile_index]:
+                    self.feature_data_signatures.pop(key, None)
 
         # self.pLines = []
         if not self.is_profileline_available(profPoints):
             # reset plot
             self.plotTool.resetPlot(clearAll=True)
             self.switch_plot_logo(False)
+            self.refresh_feature_map_markers()
+            self.update_feature_count()
             return
 
         for pIndex in range(len(profPoints)):
@@ -589,6 +639,8 @@ class LineProfile:
 
         if reduce(lambda x, y: x + len(y), self.pLines, 0) == 0:
             self.switch_plot_logo(False)
+            self.refresh_feature_map_markers()
+            self.update_feature_count()
             return False
 
         self.switch_plot_logo(True)
@@ -624,6 +676,7 @@ class LineProfile:
                 layer_type = layer.type()
 
                 myData = []
+                raster_layer_id = None
                 if layer_type == layer.VectorLayer:
                     """Vector Layer"""
                     myData = self.dpTool.getVectorProfile(pp, layer, field, config["maxDistance"], None, pIndex)
@@ -645,10 +698,22 @@ class LineProfile:
                         "layer": layer,
                         "layer_type": layer_type,
                         "color_org": color_org,
+                        "row": r,
+                        "raster_layer_id": raster_layer_id,
                     }
                 )
+                if raster_layer_id is not None:
+                    signature = self.make_feature_data_signature(
+                        pIndex, pp, layer, field, config
+                    )
+                    self.register_feature_data_signature(
+                        pIndex, raster_layer_id, signature
+                    )
             # self.handle_raster_sampling_details(pIndex, config, color_org)
             self.plotData.append(data)
+
+        self.refresh_peak_data_sources()
+        self.clear_removed_feature_sources()
 
         # draw tie lines
         if self.dock.ChkBox_TieLine.isChecked():
@@ -676,7 +741,12 @@ class LineProfile:
             pLineNormalized=normalized,
             pLineNormalizedBySegment=normalized_by_segment,
             profilePlotConverter=self.ppc,
+            featureRecords=self.current_feature_records(),
+            featureProfileIndex=self.getProfileIndex(),
+            featureRasterLayerId=self.current_peak_raster_layer_id(),
         )
+        self.refresh_feature_map_markers()
+        self.update_feature_count()
 
     def show_error_message_on_normaliziation(self, text):
         msg = QMessageBox()
@@ -773,7 +843,11 @@ class LineProfile:
                     # Show message (need to have same number of segment)
                     self.show_error_message_on_normaliziation("Need same number of segments.")
                     return False
-            self.ppc.set_pLines(self.pLines, 0)
+            try:
+                self.ppc.set_pLines(self.pLines, 0)
+            except ValueError as error:
+                self.show_error_message_on_normaliziation(str(error))
+                return False
 
         if normalized:
             for i in range(self.n_profile_lines):
@@ -800,7 +874,7 @@ class LineProfile:
         fields = []
         polyline = []
         attr = []
-        fileName = os.path.basename(shapeFilePath.split(os.extsep)[0])
+        fileName = os.path.splitext(os.path.basename(shapeFilePath))[0]
         profileLineLayer = QgsVectorLayer("LineString", fileName, "memory")
 
         profileLineLayer.startEditing()
@@ -840,12 +914,13 @@ class LineProfile:
                 # add shape file to map
                 self.iface.addVectorLayer(shapeFilePath, fileName, "ogr")
         else:
-            pass
+            self.log_message("Profile line export failed with error code {}".format(error), Qgis.Critical)
+            QMessageBox.warning(self.iface.mainWindow(), "Line Profile", "Could not export the profile line.")
 
-    def is_layer_available(self, layer, model, r):
+    def is_vector_layer_available(self, layer, model, r):
         if not layer:
             return False
-        if not layer.RasterLayer:
+        if layer.type() != layer.VectorLayer:
             return False
         if not model.getCheckState(r):
             return False
@@ -857,7 +932,7 @@ class LineProfile:
         for r in range(self.model.rowCount()):
             layer = self.getLayerById(self.model.getLayerId(r))
 
-            if not self.is_layer_available(layer, self.model, r):
+            if not self.is_vector_layer_available(layer, self.model, r):
                 continue
 
             field = self.model.getDataName(r)
@@ -877,7 +952,7 @@ class LineProfile:
 
         if self.impPLDialog.RadBtn_FileSelect.isChecked():
             shapeFilePath = self.sanitizePath(self.impPLDialog.TBox_ShapeFilePath.text())
-            shapeFileName = os.path.basename(shapeFilePath.split(os.extsep)[1])
+            shapeFileName = os.path.splitext(os.path.basename(shapeFilePath))[0]
             layer = self.iface.addVectorLayer(shapeFilePath, shapeFileName, "ogr")
         else:
             layerId = self.impPLDialog.CmbBox_LayerSelect.itemData(self.impPLDialog.CmbBox_LayerSelect.currentIndex())
@@ -885,25 +960,42 @@ class LineProfile:
         self.importProfileLine(layer)
 
     def importProfileLine(self, layer):
+        if not layer or not layer.isValid():
+            QMessageBox.warning(self.iface.mainWindow(), "Line Profile", "Could not open the profile line layer.")
+            return
         dp = layer.dataProvider()
         points = []
         for f in dp.getFeatures():
-            points = f.geometry().asMultiPolyline()
-        points = [[pt.x(), pt.y()] for pt in points[0]]
+            geometry = f.geometry()
+            if geometry.isMultipart():
+                multipart = geometry.asMultiPolyline()
+                points = multipart[0] if multipart else []
+            else:
+                points = geometry.asPolyline()
+            break
+        if len(points) < 2:
+            QMessageBox.warning(self.iface.mainWindow(), "Line Profile", "The selected layer has no usable line geometry.")
+            return
+        points = [[pt.x(), pt.y()] for pt in points]
         self.profileLineTool.draw_profileLine_from_points(points)
         self.updatePlot()
 
     def init_profile_line(self):
+        self.dock.CmbBox_ProfileLine.clear()
         for i in range(self.n_profile_lines):
             self.dock.CmbBox_ProfileLine.addItem("Profile Line {}".format(i + 1), i)
         self.dock.CmbBox_ProfileLine.setCurrentIndex(0)
 
-        # self.profileLineTool.initProfileLine(n)
-        self.profileLineTool.init_profile(self.n_profile_lines)
+        if not self.profileLineTool.profile:
+            self.profileLineTool.init_profile(self.n_profile_lines)
 
     def clear_profile_line(self):
         # self.profileLineTool.resetProfileLine()
-        self.profileLineTool.reset_profile(self.getProfileIndex())
+        profile_index = self.getProfileIndex()
+        self.featurePointStore.clear_profile(profile_index)
+        self.dpTool.clear_profile_sample_centers(profile_index)
+        self.profileLineTool.reset_feature_points(profile_index)
+        self.profileLineTool.reset_profile(profile_index)
         self.updatePlot()
 
     def removeProfileLine(self):
@@ -912,6 +1004,8 @@ class LineProfile:
 
     def changeCurrentProfileLine(self, pIndex):
         self.profileLineTool.update_current_profile_line(pIndex)
+        if hasattr(self, "plotData"):
+            self.updatePlot()
 
     def getProfileIndex(self):
         return self.dock.CmbBox_ProfileLine.currentIndex()
@@ -940,7 +1034,7 @@ class LineProfile:
         if not self.dock.ChkBox_Tracer.isChecked():
             return False
 
-        if not (event.xdata and event.ydata):
+        if event.xdata is None or event.ydata is None:
             return False
 
         if len(self.profileLineTool.profile[self.profileLineTool.profile_line_index]["point"]) == 0:
@@ -961,11 +1055,7 @@ class LineProfile:
 
         # move marker to the position
 
-        # normalized by segment
-        if self.is_normalized_by_segment():
-            x = self.ppc.plotX_to_profileX(event.xdata, p_index)
-        else:
-            x = event.xdata / normFactor[p_index]
+        x = self.plot_x_to_profile_x(event.xdata, p_index, normFactor)
 
         if x > self.dpTool.sumD(self.pLines[p_index]):
             return
@@ -1001,7 +1091,7 @@ class LineProfile:
             self.iface.mainWindow(),
             "Save As",
             os.environ["HOME"],
-            "Tab Deliminated Text (*.txt);; Comma Separated Values (*.csv)",
+            "Tab Delimited Text (*.txt);; Comma Separated Values (*.csv)",
         )
         if fileName:
             myD = []
@@ -1059,15 +1149,354 @@ class LineProfile:
             raster_layer_id = self.get_raster_layer_id(r, layer_id, element_name)
             my_cbx.addItem(element_name, raster_layer_id)
 
+    def refresh_peak_data_sources(self):
+        if not getattr(self, "dock", None):
+            return
+        combo = self.dock.Cmb_PeakDataSource
+        selected_id = combo.currentData()
+        combo.blockSignals(True)
+        combo.clear()
+        for row in range(self.model.rowCount()):
+            layer = self.getLayerById(self.model.getLayerId(row))
+            if (
+                not layer
+                or layer.type() != layer.RasterLayer
+                or not self.model.getCheckState(row)
+            ):
+                continue
+            data_name = self.model.getDataName(row)
+            raster_layer_id = self.get_raster_layer_id(row, layer.id(), data_name)
+            combo.addItem("{} — {}".format(layer.name(), data_name), raster_layer_id)
+        selected_index = combo.findData(selected_id)
+        combo.setCurrentIndex(selected_index if selected_index >= 0 else (0 if combo.count() else -1))
+        combo.blockSignals(False)
+        has_source = combo.currentIndex() >= 0
+        self.dock.Btn_AutoDetect.setEnabled(has_source)
+        self.dock.Btn_ModeAddPeak.setEnabled(has_source)
+        self.dock.Btn_ModeAddValley.setEnabled(has_source)
+        self.dock.Btn_ModeDelete.setEnabled(has_source)
+
+    def current_peak_raster_layer_id(self):
+        if not getattr(self, "dock", None):
+            return None
+        return self.dock.Cmb_PeakDataSource.currentData()
+
+    def current_peak_context(self, show_message=False):
+        profile_index = self.getProfileIndex()
+        raster_layer_id = self.current_peak_raster_layer_id()
+        if raster_layer_id is None or not hasattr(self, "plotData"):
+            if show_message:
+                QMessageBox.information(self.iface.mainWindow(), "Peak / Valley Detection", "Select a raster data series first.")
+            return None
+        if profile_index < 0 or profile_index >= len(self.plotData):
+            return None
+        for descriptor in self.plotData[profile_index]:
+            if descriptor.get("raster_layer_id") != raster_layer_id:
+                continue
+            x_values, y_values = descriptor["data"]
+            centers = self.dpTool.get_profile_sample_centers(profile_index, raster_layer_id)
+            if not x_values or len(x_values) != len(y_values) or len(x_values) != len(centers):
+                if show_message:
+                    QMessageBox.warning(
+                        self.iface.mainWindow(),
+                        "Peak / Valley Detection",
+                        "The selected raster profile has no usable samples or its sample mapping is inconsistent.",
+                    )
+                return None
+            return {
+                "profile_index": profile_index,
+                "raster_layer_id": raster_layer_id,
+                "x": x_values,
+                "y": y_values,
+                "centers": centers,
+                "data_label": "{} — {}".format(descriptor["layer"].name(), descriptor["label"]),
+            }
+        if show_message:
+            QMessageBox.information(self.iface.mainWindow(), "Peak / Valley Detection", "Select a raster data series first.")
+        return None
+
+    def make_feature_data_signature(self, profile_index, profile_lines, layer, field, config):
+        geometry = tuple(
+            (
+                tuple(segment["start"]),
+                tuple(segment["end"]),
+                segment["distance_pixel_sized"],
+            )
+            for segment in profile_lines
+        )
+        return (
+            profile_index,
+            geometry,
+            layer.id(),
+            field,
+            bool(config["fullRes"]),
+            bool(config["areaSampling"]),
+            config["areaSamplingWidth"],
+            self.dpTool.pixel_size,
+        )
+
+    def register_feature_data_signature(self, profile_index, raster_layer_id, signature):
+        key = (profile_index, raster_layer_id)
+        previous = self.feature_data_signatures.get(key)
+        if previous is not None and previous != signature:
+            self.featurePointStore.clear_key(profile_index, raster_layer_id)
+            self.profileLineTool.reset_feature_points(profile_index)
+        self.feature_data_signatures[key] = signature
+
+    def clear_removed_feature_sources(self):
+        valid_ids = set()
+        for row in range(self.model.rowCount()):
+            layer = self.getLayerById(self.model.getLayerId(row))
+            if not layer or layer.type() != layer.RasterLayer:
+                continue
+            valid_ids.add(self.get_raster_layer_id(row, layer.id(), self.model.getDataName(row)))
+        for profile_index, raster_layer_id in list(self.featurePointStore.keys()):
+            if raster_layer_id not in valid_ids:
+                self.featurePointStore.clear_key(profile_index, raster_layer_id)
+                self.feature_data_signatures.pop((profile_index, raster_layer_id), None)
+
+    def current_feature_records(self):
+        raster_layer_id = self.current_peak_raster_layer_id()
+        if raster_layer_id is None:
+            return []
+        return self.featurePointStore.records_for(self.getProfileIndex(), raster_layer_id)
+
+    def update_feature_count(self):
+        if getattr(self, "dock", None):
+            self.dock.Lbl_FeatureCount.setText("{} points".format(len(self.current_feature_records())))
+
+    def refresh_feature_map_markers(self, *args):
+        self.profileLineTool.reset_feature_points()
+        if not getattr(self, "dock", None) or not self.dock.Chk_ShowFeaturePoints.isChecked():
+            return
+        profile_index = self.getProfileIndex()
+        records = self.current_feature_records()
+        if records and 0 <= profile_index < len(self.profileLineTool.profile):
+            self.profileLineTool.draw_feature_points(profile_index, records)
+
+    def handle_peak_context_changed(self, *args):
+        if hasattr(self, "plotData"):
+            self.updatePlot()
+        else:
+            self.refresh_feature_map_markers()
+            self.update_feature_count()
+
+    def handle_auto_detect(self):
+        context = self.current_peak_context(show_message=True)
+        if context is None:
+            return
+        if not self.dock.Chk_DetectPeaks.isChecked() and not self.dock.Chk_DetectValleys.isChecked():
+            QMessageBox.information(
+                self.iface.mainWindow(),
+                "Peak / Valley Detection",
+                "Enable Detect Peaks and/or Detect Valleys.",
+            )
+            return
+        if not self.peakDetectionTool.scipy_available():
+            self.scipyDependencyManager.ensure_scipy(self.iface.mainWindow(), self.handle_auto_detect)
+            return
+        try:
+            results = self.peakDetectionTool.detect(
+                context["x"],
+                context["y"],
+                detect_peaks=self.dock.Chk_DetectPeaks.isChecked(),
+                detect_valleys=self.dock.Chk_DetectValleys.isChecked(),
+                prominence=self.dock.Spn_Prominence.value() or None,
+                distance=self.dock.Spn_MinPeakDistance.value(),
+                width=self.dock.Spn_MinPeakWidth.value() or None,
+                smoothing_sigma=self.dock.Spn_SmoothingSigma.value(),
+            )
+        except (ImportError, ValueError, RuntimeError) as error:
+            self.log_message("Peak/Valley detection failed: {}".format(error), Qgis.Critical)
+            QMessageBox.warning(self.iface.mainWindow(), "Peak / Valley Detection", str(error))
+            return
+
+        records = []
+        for kind in ("peak", "valley"):
+            for result in results[kind]:
+                record = dict(result)
+                record.update(
+                    {
+                        "profile_index": context["profile_index"],
+                        "raster_layer_id": context["raster_layer_id"],
+                        "point": context["centers"][record["sample_index"]],
+                        "data_label": context["data_label"],
+                    }
+                )
+                records.append(record)
+        self.featurePointStore.replace_auto(
+            context["profile_index"], context["raster_layer_id"], records
+        )
+        self.updatePlot()
+
+    def clear_auto_features(self):
+        raster_layer_id = self.current_peak_raster_layer_id()
+        if raster_layer_id is None:
+            return
+        self.featurePointStore.clear_auto(self.getProfileIndex(), raster_layer_id)
+        self.updatePlot()
+
+    def clear_all_features(self):
+        records = self.featurePointStore.all_records()
+        if not records:
+            return
+        if any(record["source"] == "manual" for record in records):
+            response = QMessageBox.question(
+                self.iface.mainWindow(),
+                "Peak / Valley Detection",
+                "Clear all automatic and manually curated Peak/Valley points?",
+                QMessageBox.Yes | QMessageBox.Cancel,
+                QMessageBox.Cancel,
+            )
+            if response != QMessageBox.Yes:
+                return
+        self.featurePointStore.clear_all()
+        self.updatePlot()
+
+    def plot_x_to_profile_x(self, plot_x, profile_index, norm_factors):
+        if self.is_normalized_by_segment():
+            return self.ppc.plotX_to_profileX(plot_x, profile_index)
+        factor = norm_factors[profile_index] if profile_index < len(norm_factors) else 1
+        return plot_x / factor if factor else plot_x
+
+    def profile_x_to_plot_x(self, profile_x, profile_index):
+        if self.is_normalized_by_segment():
+            return self.ppc.profileX_to_plotX(profile_x, profile_index)
+        if self.dock.Grp_Normalized.isChecked():
+            denominator = self.dpTool.sumD(self.pLines[profile_index])
+            if denominator:
+                return profile_x * self.dpTool.sumD(self.pLines[0]) / denominator
+        return profile_x
+
+    def handle_feature_plot_click(self, event, norm_factors):
+        button = getattr(event.button, "value", event.button)
+        if event.inaxes is None or event.xdata is None or button != 1 or self.dock.Btn_ModeSelect.isChecked():
+            return
+        context = self.current_peak_context(show_message=True)
+        if context is None:
+            return
+        profile_x = self.plot_x_to_profile_x(event.xdata, context["profile_index"], norm_factors)
+        nearest_index = min(
+            range(len(context["x"])),
+            key=lambda index: abs(context["x"][index] - profile_x),
+        )
+        tolerance = self.dock.Spn_SnapRange.value()
+        if self.dock.Btn_ModeDelete.isChecked():
+            self.featurePointStore.delete_nearest(
+                context["profile_index"], context["raster_layer_id"], nearest_index, tolerance
+            )
+            self.updatePlot()
+            return
+
+        if self.dock.Btn_ModeAddPeak.isChecked():
+            kind = "peak"
+            sample_index = self.peakDetectionTool.snap_peak(context["y"], nearest_index, tolerance)
+        elif self.dock.Btn_ModeAddValley.isChecked():
+            kind = "valley"
+            sample_index = self.peakDetectionTool.snap_valley(context["y"], nearest_index, tolerance)
+        else:
+            return
+        if sample_index is None:
+            return
+        self.featurePointStore.add_manual(
+            {
+                "kind": kind,
+                "profile_index": context["profile_index"],
+                "raster_layer_id": context["raster_layer_id"],
+                "sample_index": sample_index,
+                "distance": context["x"][sample_index],
+                "value": context["y"][sample_index],
+                "point": context["centers"][sample_index],
+                "prominence": None,
+                "width": None,
+                "data_label": context["data_label"],
+            }
+        )
+        self.updatePlot()
+
+    def create_feature_point_layer(self):
+        records = self.featurePointStore.all_records()
+        if not records:
+            QMessageBox.information(self.iface.mainWindow(), "Peak / Valley Detection", "There are no points to export.")
+            return
+        base_name = "Line Profile Peaks Valleys"
+        existing_names = {layer.name() for layer in QgsProject.instance().mapLayers().values()}
+        layer_name = base_name
+        suffix = 2
+        while layer_name in existing_names:
+            layer_name = "{} {}".format(base_name, suffix)
+            suffix += 1
+        crs = self.canvas.mapSettings().destinationCrs()
+        uri = "Point?crs={}".format(crs.authid()) if crs.authid() else "Point"
+        output_layer = QgsVectorLayer(uri, layer_name, "memory")
+        provider = output_layer.dataProvider()
+        fields = [
+            QgsField("feature_id", QVariant.String),
+            QgsField("type", QVariant.String),
+            QgsField("source", QVariant.String),
+            QgsField("profile", QVariant.Int),
+            QgsField("data", QVariant.String),
+            QgsField("raster_id", QVariant.String),
+            QgsField("sample_idx", QVariant.Int),
+            QgsField("distance", QVariant.Double),
+            QgsField("value", QVariant.Double),
+            QgsField("prominence", QVariant.Double),
+            QgsField("width", QVariant.Double),
+        ]
+        provider.addAttributes(fields)
+        output_layer.updateFields()
+        features = []
+        for record in records:
+            point = record["point"]
+            if not isinstance(point, QgsPointXY):
+                point = QgsPointXY(*point)
+            feature = QgsFeature()
+            feature.setGeometry(QgsGeometry.fromPointXY(point))
+            feature.setAttributes(
+                [
+                    record["id"],
+                    record["kind"],
+                    record["source"],
+                    record["profile_index"] + 1,
+                    record.get("data_label", ""),
+                    record["raster_layer_id"],
+                    record["sample_index"],
+                    record["distance"],
+                    record["value"],
+                    record.get("prominence"),
+                    record.get("width"),
+                ]
+            )
+            features.append(feature)
+        provider.addFeatures(features)
+        output_layer.updateExtents()
+        QgsProject.instance().addMapLayer(output_layer)
+        QMessageBox.information(
+            self.iface.mainWindow(),
+            "Peak / Valley Detection",
+            "Created point layer with {} features.".format(len(features)),
+        )
+
     def import_alignment_file(self):
         default_path = "~"
         align_file, _ = QFileDialog.getOpenFileName(
-            self.iface.mainWindow(), "Select alginment file", default_path, "alignment files (*.json)"
+            self.iface.mainWindow(), "Select alignment file", default_path, "Alignment files (*.json)"
         )
-        with open(align_file, "r") as f:
-            alignment = json.load(f)
+        if not align_file:
+            return
+        try:
+            with open(align_file, "r") as f:
+                alignment = json.load(f)
             px_size = self.get_pixel_size(alignment)
-            self.dock.Spn_PixelSize.setValue(px_size)
+        except (OSError, ValueError, TypeError, KeyError, IndexError, json.JSONDecodeError) as error:
+            self.log_message("Alignment import failed: {}".format(error), Qgis.Critical)
+            QMessageBox.warning(
+                self.iface.mainWindow(),
+                "Line Profile",
+                "The alignment file is invalid or does not contain usable reference points.",
+            )
+            return
+        self.dock.Spn_PixelSize.setValue(px_size)
 
     def get_distance(self, pt1, pt2):
         # pt1 = [x1, y1]
@@ -1077,12 +1506,16 @@ class LineProfile:
         return math.sqrt(a + b)
 
     def get_pixel_size(self, alignment):
-        px_size: float = 0
+        if not isinstance(alignment, list) or not alignment:
+            raise ValueError("Alignment data must be a non-empty list")
 
         if "scale" in alignment[0]:
             # old format
             # scale of the first set of reference points
-            px_size = 1 / alignment[0]["scale"]
+            scale = float(alignment[0]["scale"])
+            if scale == 0:
+                raise ValueError("Alignment scale must be non-zero")
+            px_size = 1 / scale
         else:
             # new version
             # average px_size with all combinations of ref points
@@ -1094,9 +1527,15 @@ class LineProfile:
                     continue
                 stage_distance = self.get_distance(pt1=alignment[c[0]]["stage"][0], pt2=alignment[c[1]]["stage"][0])
                 canvas_distance = self.get_distance(pt1=alignment[c[0]]["canvas"][0], pt2=alignment[c[1]]["canvas"][0])
+                if canvas_distance == 0:
+                    continue
                 pxsize_list.append(stage_distance / canvas_distance)
+            if not pxsize_list:
+                raise ValueError("No usable alignment reference pairs")
             px_size = sum(pxsize_list) / len(pxsize_list)
 
+        if not math.isfinite(px_size) or px_size <= 0:
+            raise ValueError("Pixel size must be a positive finite number")
         return px_size
 
     def sanitizePath(self, path):
