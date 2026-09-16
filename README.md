@@ -129,7 +129,7 @@ The **Data** list contains only checked raster series that are currently availab
 | **Detect Peaks** | On | Detect local maxima in the profile. |
 | **Detect Valleys** | On | Detect local minima by applying the same detection logic to the inverted profile. Reported values remain the original, non-inverted values. |
 | **Prominence** | `0` | Minimum vertical prominence in intensity units. A larger value rejects small bumps whose height relative to the surrounding baseline is too small. `0` applies no prominence constraint. |
-| **Min distance** | `1` | Minimum separation between detected features, measured in profile samples. A larger value suppresses closely spaced detections. This is a sample count, not map distance. |
+| **Min distance** | `0 µm` | Minimum separation between neighboring peaks or neighboring valleys along the profile, measured in µm. A larger value suppresses closely spaced detections of the same type. `0` applies no distance constraint. |
 | **Min width** | `0` | Minimum feature width in profile samples. Width is measured by SciPy at approximately half of the feature prominence. A larger value rejects narrow features. `0` applies no width constraint. |
 | **Smoothing σ** | `0` | Standard deviation of Gaussian smoothing, measured in profile samples. A larger value reduces high frequency noise but can merge nearby features. `0` disables smoothing. Smoothing affects detection only; stored distance and intensity values come from the original profile. |
 

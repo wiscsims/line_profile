@@ -1370,7 +1370,7 @@ class LineProfile:
                 detect_peaks=self.dock.Chk_DetectPeaks.isChecked(),
                 detect_valleys=self.dock.Chk_DetectValleys.isChecked(),
                 prominence=self.dock.Spn_Prominence.value() or None,
-                distance=self.dock.Spn_MinPeakDistance.value(),
+                min_distance=self.dock.Spn_MinPeakDistance.value(),
                 width=self.dock.Spn_MinPeakWidth.value() or None,
                 smoothing_sigma=self.dock.Spn_SmoothingSigma.value(),
             )

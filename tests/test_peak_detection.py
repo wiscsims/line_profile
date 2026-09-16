@@ -56,10 +56,68 @@ class PeakDetectionToolTest(unittest.TestCase):
         result = self.tool.detect(range(len(y)), y, detect_valleys=False, prominence=3)
         self.assertEqual([item["sample_index"] for item in result["peak"]], [4])
 
-    def test_distance_filters_nearby_peaks(self):
+    def test_min_distance_uses_physical_distance_at_one_um_sampling(self):
         y = [0, 5, 0, 8, 0]
-        result = self.tool.detect(range(len(y)), y, detect_valleys=False, distance=3)
+        result = self.tool.detect(range(len(y)), y, detect_valleys=False, min_distance=3)
         self.assertEqual([item["sample_index"] for item in result["peak"]], [3])
+
+    def test_min_distance_uses_physical_distance_at_quarter_um_sampling(self):
+        x = [index * 0.25 for index in range(26)]
+        y = [0] * len(x)
+        y[4] = 5
+        y[22] = 8
+        result = self.tool.detect(x, y, detect_valleys=False, min_distance=5)
+        self.assertEqual([item["sample_index"] for item in result["peak"]], [22])
+        self.assertEqual(result["peak"][0]["distance"], 5.5)
+
+    def test_min_distance_uses_physical_distance_at_two_um_sampling(self):
+        x = [0, 2, 4, 6, 8]
+        y = [0, 5, 0, 8, 0]
+        result = self.tool.detect(x, y, detect_valleys=False, min_distance=5)
+        self.assertEqual([item["sample_index"] for item in result["peak"]], [3])
+
+    def test_min_distance_handles_slightly_irregular_x_spacing(self):
+        x = [0.0, 1.0, 2.0, 3.1, 4.1, 5.1, 6.1]
+        y = [0, 5, 0, 0, 8, 0, 0]
+        result = self.tool.detect(x, y, detect_valleys=False, min_distance=3.2)
+        self.assertEqual([item["sample_index"] for item in result["peak"]], [4])
+
+    def test_features_exactly_at_min_distance_are_retained(self):
+        x = list(range(8))
+        y = [0, 5, 0, 0, 0, 0, 8, 0]
+        result = self.tool.detect(x, y, detect_valleys=False, min_distance=5)
+        self.assertEqual([item["sample_index"] for item in result["peak"]], [1, 6])
+
+    def test_features_below_min_distance_keep_the_stronger_candidate(self):
+        x = [0, 1, 2, 3, 4, 5.9, 6.9]
+        y = [0, 5, 0, 0, 0, 8, 0]
+        result = self.tool.detect(
+            x, y, detect_valleys=False, prominence=0.1, min_distance=5
+        )
+        self.assertEqual([item["sample_index"] for item in result["peak"]], [5])
+
+    def test_peaks_and_valleys_are_filtered_independently(self):
+        x = list(range(5))
+        y = [0, 5, 0, -8, 0]
+        result = self.tool.detect(x, y, min_distance=5)
+        self.assertEqual([item["sample_index"] for item in result["peak"]], [1])
+        self.assertEqual([item["sample_index"] for item in result["valley"]], [3])
+
+    def test_zero_min_distance_is_unconstrained(self):
+        y = [0, 5, 0, 0, 8, 0]
+        result = self.tool.detect(range(len(y)), y, detect_valleys=False, min_distance=0)
+        self.assertEqual([item["sample_index"] for item in result["peak"]], [1, 4])
+
+    def test_min_distance_is_not_forwarded_to_scipy_sample_distance(self):
+        calls = []
+
+        def recording_find_peaks(signal, **options):
+            calls.append(options)
+            return [], {}
+
+        self.tool._scipy_functions = lambda: (recording_find_peaks, fake_gaussian_filter)
+        self.tool.detect([0, 1, 2], [0, 5, 0], detect_valleys=False, min_distance=2.5)
+        self.assertEqual(calls, [{}])
 
     def test_smoothing_reports_raw_value(self):
         y = [0, 0, 10, 0, 0]
@@ -76,7 +134,7 @@ class PeakDetectionToolTest(unittest.TestCase):
 
     def test_missing_values_split_detection_runs(self):
         y = [0, 5, 0, None, 0, 6, 0]
-        result = self.tool.detect(range(len(y)), y, detect_valleys=False)
+        result = self.tool.detect(range(len(y)), y, detect_valleys=False, min_distance=5)
         self.assertEqual([item["sample_index"] for item in result["peak"]], [1, 5])
 
     def test_actual_scipy_find_peaks_when_available(self):

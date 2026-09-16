@@ -197,17 +197,19 @@
              </item>
              <item row="2" column="2"><widget class="QLabel" name="Lbl_MinPeakDistance"><property name="text"><string>Min distance</string></property></widget></item>
              <item row="2" column="3">
-              <widget class="QSpinBox" name="Spn_MinPeakDistance">
-               <property name="toolTip"><string>Number of profile samples</string></property>
-               <property name="minimum"><number>1</number></property>
-               <property name="maximum"><number>999999</number></property>
-               <property name="value"><number>1</number></property>
+              <widget class="QDoubleSpinBox" name="Spn_MinPeakDistance">
+               <property name="toolTip"><string>Minimum separation between neighboring detected peaks or valleys along the profile; 0 means unconstrained</string></property>
+               <property name="decimals"><number>2</number></property>
+               <property name="minimum"><double>0.000000000000000</double></property>
+               <property name="maximum"><double>999999.000000000000000</double></property>
+               <property name="suffix"><string> µm</string></property>
+               <property name="value"><double>0.000000000000000</double></property>
               </widget>
              </item>
              <item row="3" column="0"><widget class="QLabel" name="Lbl_MinPeakWidth"><property name="text"><string>Min width</string></property></widget></item>
              <item row="3" column="1">
               <widget class="QDoubleSpinBox" name="Spn_MinPeakWidth">
-               <property name="toolTip"><string>Number of profile samples; 0 means unconstrained</string></property>
+               <property name="toolTip"><string>Minimum peak width in profile samples; 0 means unconstrained</string></property>
                <property name="decimals"><number>2</number></property>
                <property name="maximum"><double>999999.000000000000000</double></property>
               </widget>
