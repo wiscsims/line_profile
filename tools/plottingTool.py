@@ -102,12 +102,40 @@ class PlottingTool:
         maX = data[0][n2:len(data[0]) - n2 + offset]
         return (maX, maY)
 
-    def movingAverage(self, host, data, color, N=10, linestyle='-'):
+    def movingAverage(
+        self,
+        host,
+        data,
+        color,
+        N=10,
+        linestyle='-',
+        raw_x=None,
+        visible_ranges=None,
+    ):
         maX, maY = self.calculateMovingAverage(data, N)
+        if visible_ranges is not None and raw_x is not None:
+            offset = 0 if N % 2.0 else 1
+            n2 = int(N / 2.0)
+            ma_raw_x = raw_x[n2:len(raw_x) - n2 + offset]
+            maY = self.mask_visible_values(ma_raw_x, maY, visible_ranges)
         movAve, = host.plot(maX, maY, color=color, linestyle=linestyle)
+        return movAve
 
     def sum_profile_line(self, profile_line):
         return reduce(lambda x, y: x + y['distance_pixel_sized'], profile_line, 0.0)
+
+    @staticmethod
+    def distance_is_visible(distance, ranges, tolerance=1e-9):
+        return any(start - tolerance <= distance <= end + tolerance for start, end in ranges)
+
+    @classmethod
+    def mask_visible_values(cls, raw_x, values, ranges):
+        if ranges is None:
+            return list(values)
+        return [
+            value if cls.distance_is_visible(distance, ranges) else np.nan
+            for distance, value in zip(raw_x, values)
+        ]
 
     def drawPlot3(self, pLines, data, **opt):
         # clear current plot
@@ -128,6 +156,7 @@ class PlottingTool:
         feature_records = opt.get('featureRecords', [])
         feature_profile_index = opt.get('featureProfileIndex')
         feature_raster_layer_id = opt.get('featureRasterLayerId')
+        visible_profile_ranges = opt.get('visibleProfileRanges')
 
         dps = 'distance_pixel_sized'
 
@@ -160,6 +189,11 @@ class PlottingTool:
         else:
             # [1, 1, 1, ...] No normalization => all factors are 1
             [normFactor.append(1) for pIndex in range(len(pLines))]
+
+        def profile_x_to_plot_x(distance, profile_index):
+            if pLineNorm and pLineNorm_by_segment:
+                return ppc.profileX_to_plotX(distance, profile_index)
+            return distance * normFactor[profile_index]
 
         # find index of longest profile line
         longestN = 0
@@ -214,7 +248,8 @@ class PlottingTool:
                 """ normalization """
                 # normalizing data (x values) by base profile line
                 # (default - currently fixed: Profile Line 1)
-                plot_x = list(dd['data'][0])
+                raw_x = list(dd['data'][0])
+                plot_x = list(raw_x)
                 if pLineNorm:
                     if pLineNorm_by_segment:
                         # apply segmment specific normilization factor to x values
@@ -226,18 +261,27 @@ class PlottingTool:
                 plot_data = [plot_x, dd['data'][1]]
 
                 """ moving average """
-                if d['layer_type'] and d['configs']['movingAverage']:
+                profile_ranges = (
+                    visible_profile_ranges.get(pIndex, [])
+                    if visible_profile_ranges is not None
+                    else None
+                )
+
+                if dd['layer_type'] and dd['configs']['movingAverage']:
                     self.movingAverage(myAx, plot_data, dd['color_org'],
                                        dd['configs']['movingAverageN'],
-                                       linestyles[pIndex])
+                                       linestyles[pIndex],
+                                       raw_x=raw_x,
+                                       visible_ranges=profile_ranges)
 
-                alpha = 0.1 if d['layer_type'] and d['configs']['movingAverage'] else symbolAlpha[pIndex]
+                alpha = 0.1 if dd['layer_type'] and dd['configs']['movingAverage'] else symbolAlpha[pIndex]
                 color = ColorConverter().to_rgba(d['color_org'], alpha=alpha)
                 marker = d['configs']['plotOptions']['symbol']
                 marker_size = d['configs']['plotOptions']['symbolSize']
                 line_type = d['configs']['plotOptions']['lineType']
                 line_width = d['configs']['plotOptions']['lineWidth']
-                my_tmp_Plot, = myAx.plot(plot_x, dd['data'][1],
+                visible_y = self.mask_visible_values(raw_x, dd['data'][1], profile_ranges)
+                my_tmp_Plot, = myAx.plot(plot_x, visible_y,
                                          label=dd['label'], color=color,
                                          linestyle=linestyles[pIndex],
                                          linewidth=line_width,
@@ -255,7 +299,15 @@ class PlottingTool:
                         ('peak', '^', '#dc2828'),
                         ('valley', 'v', '#285adc'),
                     ):
-                        selected = [record for record in feature_records if record['kind'] == kind]
+                        selected = [
+                            record
+                            for record in feature_records
+                            if record['kind'] == kind
+                            and (
+                                profile_ranges is None
+                                or self.distance_is_visible(record['distance'], profile_ranges)
+                            )
+                        ]
                         if selected:
                             marker_x = []
                             for record in selected:
@@ -321,27 +373,50 @@ class PlottingTool:
         # draw vertical line for each vertices of profile line(s)
         plColor = [u'red', u'blue', u'green']
         for pIndex in range(len(pLines)):
-            d = 0
+            raw_d = 0
             for i in range(len(pLines[pIndex]) - 1):  # avoid last line
-                # scan segments
-                if pLineNorm and pLineNorm_by_segment:
-                    # same as pLineNorm base profile line
-                    d += pLines[pLineNorm_base_index][i][dps]
-                else:
-                    d += pLines[pIndex][i][dps] * normFactor[pIndex]
-                self.host.axvline(x=d, c=plColor[pIndex], ls=u':', lw=1, alpha=0.3)
+                raw_d += pLines[pIndex][i][dps]
+                profile_ranges = (
+                    visible_profile_ranges.get(pIndex, [])
+                    if visible_profile_ranges is not None
+                    else None
+                )
+                if profile_ranges is None or self.distance_is_visible(raw_d, profile_ranges):
+                    self.host.axvline(
+                        x=profile_x_to_plot_x(raw_d, pIndex),
+                        c=plColor[pIndex],
+                        ls=u':',
+                        lw=1,
+                        alpha=0.3,
+                    )
 
         # set x-axis start with 0, end with endpoint of profile line
         dMax = []
 
-        if pLineNorm_by_segment:
+        if visible_profile_ranges is not None:
+            visible_plot_limits = [
+                profile_x_to_plot_x(distance, pIndex)
+                for pIndex, ranges in visible_profile_ranges.items()
+                if pIndex < len(pLines)
+                for visible_range in ranges
+                for distance in visible_range
+            ]
+            if visible_plot_limits:
+                minimum = min(visible_plot_limits)
+                maximum = max(visible_plot_limits)
+                if minimum == maximum:
+                    maximum = minimum + 1.0
+                self.host.set_xlim(minimum, maximum)
+            else:
+                self.host.set_xlim(0, 1)
+        elif pLineNorm_by_segment:
             # Length of base profile line (normalizer)
             dMax = [self.sum_profile_line(pLines[pLineNorm_base_index])]
+            self.host.set_xlim(0, max(dMax))
         else:
             [dMax.append(self.sum_profile_line(pLines[pIndex]) * normFactor[pIndex])
              for pIndex in range(len(pLines))]
-
-        self.host.set_xlim(0, max(dMax))
+            self.host.set_xlim(0, max(dMax))
         myRange = self.host.axis()
         myMargin = (myRange[3] - myRange[2]) * AxisPadding
         self.host.set_ylim(myRange[2] - myMargin, myRange[3] + myMargin)

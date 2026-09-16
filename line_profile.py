@@ -70,6 +70,7 @@ from .tools.profilePlotConverter import ProfilePlotConverter
 from .tools.peakDetectionTool import PeakDetectionTool
 from .tools.featurePointStore import FeaturePointStore
 from .tools.dependencyManager import SciPyDependencyManager
+from .tools.profileVisibility import distance_in_ranges, visible_profile_ranges
 
 # Import UI (dock and dialogs)
 from .ui.dockWidget import DockWidget
@@ -131,8 +132,14 @@ class LineProfile:
         self.timer_resize_widget = QTimer()
         self.timer_resize_widget.setSingleShot(True)
 
+        self.timer_map_extent = QTimer()
+        self.timer_map_extent.setSingleShot(True)
+        self.timer_map_extent.setInterval(200)
+
         self.n_profile_lines = 2
         self.pLines = []
+        self.plotData = []
+        self.current_visible_profile_ranges = None
 
         # instancialize tools
         self.profileLineTool = ProfileLineTool(self.canvas)
@@ -296,6 +303,8 @@ class LineProfile:
         """Removes the plugin menu item and icon from QGIS GUI."""
 
         self.pluginIsActive = False
+        if getattr(self, "dock", None) is not None:
+            self.disconnectDock()
 
         # clear objects on the canvas
         # rubberbands
@@ -426,6 +435,7 @@ class LineProfile:
         self.dock.Btn_ExportPlot.clicked.connect(self.exportPlot)
         self.dock.ChkBox_TieLine.stateChanged.connect(self.updatePlot)
         self.dock.ChkBox_Tracer.stateChanged.connect(self.handle_toggle_tracking_marker)
+        self.dock.Chk_SyncMapExtent.stateChanged.connect(self.handle_map_extent_sync_changed)
         self.dock.ChkBox_ShowSamplingPoints.stateChanged.connect(self.handle_sampling_point_display)
         self.dock.ChkBox_ShowSamplingAreas.stateChanged.connect(self.handle_sampling_area_display)
         self.dock.Btn_ExportProfileData.clicked.connect(self.exportProfileData)
@@ -457,6 +467,8 @@ class LineProfile:
         # timers
         self.timer_pixel_size_spin_box.timeout.connect(self.updatePlot)
         self.timer_resize_widget.timeout.connect(self.updatePlot)
+        self.timer_map_extent.timeout.connect(self.redraw_plot_for_map_extent)
+        self.canvas.extentsChanged.connect(self.handle_map_extent_changed)
         self.refresh_peak_data_sources()
         self.update_feature_count()
 
@@ -466,6 +478,7 @@ class LineProfile:
             (self.dock.Btn_ImportProfileLine.clicked, self.openImportProfileLineDialog),
             (self.dock.Btn_ExportPlot.clicked, self.exportPlot),
             (self.dock.ChkBox_TieLine.stateChanged, self.updatePlot),
+            (self.dock.Chk_SyncMapExtent.stateChanged, self.handle_map_extent_sync_changed),
             (self.dock.ChkBox_ShowSamplingPoints.stateChanged, self.handle_sampling_point_display),
             (self.dock.ChkBox_ShowSamplingAreas.stateChanged, self.handle_sampling_area_display),
             (self.dock.Btn_ExportProfileData.clicked, self.exportProfileData),
@@ -480,7 +493,10 @@ class LineProfile:
             (self.model.itemChanged, self.myConnect),
             (self.model.rowsInserted, self.myConnect),
             (self.model.rowsRemoved, self.myConnect),
+            (self.timer_map_extent.timeout, self.redraw_plot_for_map_extent),
+            (self.canvas.extentsChanged, self.handle_map_extent_changed),
         )
+        self.timer_map_extent.stop()
         for signal, callback in connections:
             try:
                 signal.disconnect(callback)
@@ -554,7 +570,7 @@ class LineProfile:
                                                Scalable Vector Graphics (*.svg)",
         )
         if fileName:
-            self.updatePlot()
+            self.draw_current_plot()
             self.plotTool.savePlot(fileName)
 
     def windowResizeEvent(self):
@@ -729,12 +745,25 @@ class LineProfile:
 
         # self.profileLineTool.updateProfileLine()
 
+        self.draw_current_plot()
+        self.refresh_feature_map_markers()
+        self.update_feature_count()
+
+    def draw_current_plot(self):
+        """Render the currently cached profile geometry and sampled data."""
+        if not getattr(self, "dock", None) or not self.pLines or not self.plotData:
+            return
+
         normalized = self.dock.Grp_Normalized.isChecked()
         normalized_by_segment = self.dock.Rdo_By_Segment.isChecked()
         if not self.handle_normalization(normalized, normalized_by_segment):
             return
 
-        """ draw plot """
+        visible_ranges = None
+        if self.dock.Chk_SyncMapExtent.isChecked():
+            visible_ranges = self.get_visible_profile_ranges()
+        self.current_visible_profile_ranges = visible_ranges
+
         self.plotTool.drawPlot3(
             self.pLines,
             self.plotData,
@@ -744,9 +773,37 @@ class LineProfile:
             featureRecords=self.current_feature_records(),
             featureProfileIndex=self.getProfileIndex(),
             featureRasterLayerId=self.current_peak_raster_layer_id(),
+            visibleProfileRanges=visible_ranges,
         )
-        self.refresh_feature_map_markers()
-        self.update_feature_count()
+
+    def get_visible_profile_ranges(self):
+        return visible_profile_ranges(self.pLines, self.canvas.extent())
+
+    def handle_map_extent_changed(self):
+        if (
+            not self.pluginIsActive
+            or not getattr(self, "dock", None)
+            or not self.dock.Chk_SyncMapExtent.isChecked()
+            or not self.pLines
+            or not self.plotData
+        ):
+            return
+        self.timer_map_extent.start()
+
+    def handle_map_extent_sync_changed(self, *args):
+        self.timer_map_extent.stop()
+        if self.pLines and self.plotData:
+            self.draw_current_plot()
+
+    def redraw_plot_for_map_extent(self):
+        if (
+            self.pluginIsActive
+            and getattr(self, "dock", None)
+            and self.dock.Chk_SyncMapExtent.isChecked()
+            and self.pLines
+            and self.plotData
+        ):
+            self.draw_current_plot()
 
     def show_error_message_on_normaliziation(self, text):
         msg = QMessageBox()
@@ -1057,6 +1114,12 @@ class LineProfile:
 
         x = self.plot_x_to_profile_x(event.xdata, p_index, normFactor)
 
+        if self.current_visible_profile_ranges is not None and not distance_in_ranges(
+            x, self.current_visible_profile_ranges.get(p_index, [])
+        ):
+            self.profileLineTool.hide_tracking_marker()
+            return
+
         if x > self.dpTool.sumD(self.pLines[p_index]):
             return
         pt = self.dpTool.getCurrentCoordinates(self.pLines[p_index], x)
@@ -1106,17 +1169,22 @@ class LineProfile:
                 sep = " "
             pIndex = self.getProfileIndex()
             data = self.plotData[pIndex]
+            export_data = []
 
             for d in data:
+                current_data = d["data"]
                 if d["configs"]["movingAverage"]:
-                    d["data"] = self.plotTool.calculateMovingAverage(d["data"], d["configs"]["movingAverageN"])
-                curL = len(d["data"][0])
+                    current_data = self.plotTool.calculateMovingAverage(
+                        current_data, d["configs"]["movingAverageN"]
+                    )
+                export_data.append((d, current_data))
+                curL = len(current_data[0])
                 myL = curL if curL >= myL else myL
 
-            for d in data:
+            for d, current_data in export_data:
                 label = d["layer"].name() + "_" + d["label"]
                 # transpose data rows and columns
-                a = [list(x) for x in zip(*d["data"])]
+                a = [list(x) for x in zip(*current_data)]
                 curL = len(a)
                 # padded by '' for shorter data length
                 for _ in range(myL - curL):
