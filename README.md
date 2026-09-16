@@ -130,7 +130,7 @@ The **Data** list contains only checked raster series that are currently availab
 | **Detect Valleys** | On | Detect local minima by applying the same detection logic to the inverted profile. Reported values remain the original, non-inverted values. |
 | **Prominence** | `0` | Minimum vertical prominence in intensity units. A larger value rejects small bumps whose height relative to the surrounding baseline is too small. `0` applies no prominence constraint. |
 | **Min distance** | `0 µm` | Minimum separation between neighboring peaks or neighboring valleys along the profile, measured in µm. A larger value suppresses closely spaced detections of the same type. `0` applies no distance constraint. |
-| **Min width** | `0` | Minimum feature width in profile samples. Width is measured by SciPy at approximately half of the feature prominence. A larger value rejects narrow features. `0` applies no width constraint. |
+| **Min width** | `0 µm` | Minimum feature width along the profile, measured in µm. Width is measured at approximately half of the feature prominence using the profile's actual x coordinates. A larger value rejects narrow features. `0` applies no width constraint. |
 | **Smoothing σ** | `0` | Standard deviation of Gaussian smoothing, measured in profile samples. A larger value reduces high frequency noise but can merge nearby features. `0` disables smoothing. Smoothing affects detection only; stored distance and intensity values come from the original profile. |
 
 Automatic detection uses SciPy. SciPy is loaded only when **Auto Detect** is requested. If it is unavailable, Line Profile asks for permission before installing it into the active QGIS user's `python/dependencies` directory. Manual editing remains available without SciPy.

@@ -29,6 +29,14 @@ def fake_find_peaks(signal, prominence=None, distance=None, width=None):
             for index in candidates
         ]
     properties = {"prominences": prominences} if prominence is not None else {}
+    if width is not None:
+        properties.update(
+            {
+                "widths": [1.0 for _ in candidates],
+                "left_ips": [index - 0.5 for index in candidates],
+                "right_ips": [index + 0.5 for index in candidates],
+            }
+        )
     return candidates, properties
 
 
@@ -44,6 +52,16 @@ class PeakDetectionToolTest(unittest.TestCase):
     def setUp(self):
         self.tool = PeakDetectionTool()
         self.tool._scipy_functions = lambda: (fake_find_peaks, fake_gaussian_filter)
+
+    def use_width_properties(self, index, left_ips, right_ips):
+        def find_peaks(signal, **options):
+            return [index], {
+                "widths": [right_ips - left_ips],
+                "left_ips": [left_ips],
+                "right_ips": [right_ips],
+            }
+
+        self.tool._scipy_functions = lambda: (find_peaks, fake_gaussian_filter)
 
     def test_detects_peaks_and_valleys(self):
         y = [0, 1, 5, 1, 0, 2, 8, 2, 0]
@@ -108,6 +126,67 @@ class PeakDetectionToolTest(unittest.TestCase):
         result = self.tool.detect(range(len(y)), y, detect_valleys=False, min_distance=0)
         self.assertEqual([item["sample_index"] for item in result["peak"]], [1, 4])
 
+    def test_width_is_physical_at_one_um_and_quarter_um_sampling(self):
+        self.use_width_properties(2, 1.0, 3.0)
+        one_um = self.tool.detect(
+            [0, 1, 2, 3, 4], [0, 0, 5, 0, 0], detect_valleys=False
+        )["peak"][0]
+
+        self.use_width_properties(4, 0.0, 8.0)
+        quarter_um = self.tool.detect(
+            [index * 0.25 for index in range(10)],
+            [0, 0, 0, 0, 5, 0, 0, 0, 0, 0],
+            detect_valleys=False,
+        )["peak"][0]
+
+        self.assertAlmostEqual(one_um["width"], 2.0)
+        self.assertAlmostEqual(quarter_um["width"], 2.0)
+
+    def test_min_width_uses_physical_distance_at_two_um_sampling(self):
+        self.use_width_properties(2, 1.5, 2.5)
+        x = [0, 2, 4, 6, 8]
+        y = [0, 0, 5, 0, 0]
+        retained = self.tool.detect(x, y, detect_valleys=False, min_width=2)
+        rejected = self.tool.detect(x, y, detect_valleys=False, min_width=2.01)
+        self.assertEqual([item["sample_index"] for item in retained["peak"]], [2])
+        self.assertAlmostEqual(retained["peak"][0]["width"], 2.0)
+        self.assertEqual(rejected["peak"], [])
+
+    def test_width_uses_interpolation_for_irregular_x_spacing(self):
+        self.use_width_properties(2, 1.5, 3.5)
+        x = [0.0, 1.0, 2.1, 3.0, 4.2, 5.1]
+        y = [0, 0, 5, 0, 0, 0]
+        result = self.tool.detect(x, y, detect_valleys=False)
+        self.assertAlmostEqual(result["peak"][0]["width"], 2.05)
+
+    def test_features_exactly_at_min_width_are_retained(self):
+        self.use_width_properties(2, 0.0, 5.0)
+        result = self.tool.detect(
+            [0, 1, 2, 3, 4, 5], [0, 0, 5, 0, 0, 0],
+            detect_valleys=False, min_width=5,
+        )
+        self.assertEqual([item["sample_index"] for item in result["peak"]], [2])
+
+    def test_zero_min_width_does_not_filter_and_width_is_still_physical(self):
+        y = [0, 5, 0]
+        result = self.tool.detect(range(len(y)), y, detect_valleys=False, min_width=0)
+        self.assertEqual([item["sample_index"] for item in result["peak"]], [1])
+        self.assertAlmostEqual(result["peak"][0]["width"], 1.0)
+
+    def test_width_does_not_cross_nan_separated_runs(self):
+        y = [0, 5, 0, None, 0, 6, 0]
+        result = self.tool.detect(
+            range(len(y)), y, detect_valleys=False, min_width=1
+        )
+        self.assertEqual([item["sample_index"] for item in result["peak"]], [1, 5])
+        self.assertEqual([item["width"] for item in result["peak"]], [1.0, 1.0])
+
+    def test_valley_width_is_reported_in_physical_distance(self):
+        y = [0, -5, 0]
+        result = self.tool.detect(range(len(y)), y, detect_peaks=False, min_width=1)
+        self.assertEqual([item["sample_index"] for item in result["valley"]], [1])
+        self.assertAlmostEqual(result["valley"][0]["width"], 1.0)
+
     def test_min_distance_is_not_forwarded_to_scipy_sample_distance(self):
         calls = []
 
@@ -117,7 +196,18 @@ class PeakDetectionToolTest(unittest.TestCase):
 
         self.tool._scipy_functions = lambda: (recording_find_peaks, fake_gaussian_filter)
         self.tool.detect([0, 1, 2], [0, 5, 0], detect_valleys=False, min_distance=2.5)
-        self.assertEqual(calls, [{}])
+        self.assertNotIn("distance", calls[0])
+
+    def test_min_width_is_not_forwarded_to_scipy_sample_width(self):
+        calls = []
+
+        def recording_find_peaks(signal, **options):
+            calls.append(options)
+            return [], {}
+
+        self.tool._scipy_functions = lambda: (recording_find_peaks, fake_gaussian_filter)
+        self.tool.detect([0, 1, 2], [0, 5, 0], detect_valleys=False, min_width=2.5)
+        self.assertEqual(calls[0]["width"], (None, None))
 
     def test_smoothing_reports_raw_value(self):
         y = [0, 0, 10, 0, 0]

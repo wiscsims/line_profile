@@ -61,6 +61,17 @@ class PeakDetectionTool:
                 retained.append(candidate)
         return sorted(retained, key=lambda candidate: candidate["sample_index"])
 
+    @staticmethod
+    def _interpolate_profile_x(x_values, sample_position):
+        """Convert a SciPy fractional sample position to physical profile x."""
+        if not x_values or not math.isfinite(sample_position):
+            return None
+        position = min(max(float(sample_position), 0.0), len(x_values) - 1.0)
+        left_index = int(math.floor(position))
+        right_index = min(left_index + 1, len(x_values) - 1)
+        fraction = position - left_index
+        return x_values[left_index] + fraction * (x_values[right_index] - x_values[left_index])
+
     def detect(
         self,
         x,
@@ -69,7 +80,7 @@ class PeakDetectionTool:
         detect_valleys=True,
         prominence=None,
         min_distance=None,
-        width=None,
+        min_width=None,
         smoothing_sigma=0.0,
     ):
         find_peaks, gaussian_filter1d = self._scipy_functions()
@@ -81,8 +92,9 @@ class PeakDetectionTool:
         options = {}
         if prominence is not None and prominence > 0:
             options["prominence"] = prominence
-        if width is not None and width > 0:
-            options["width"] = width
+        # Ask SciPy for fractional width properties without applying its
+        # sample-based width filter.  Physical filtering is done below.
+        options["width"] = (None, None)
 
         results = {"peak": [], "valley": []}
         valid_values = [
@@ -100,11 +112,27 @@ class PeakDetectionTool:
                 kinds.append(("valley", [-value for value in signal]))
             for kind, detection_signal in kinds:
                 indices, properties = find_peaks(detection_signal, **options)
-                prominences = properties.get("prominences")
+                prominences = (
+                    properties.get("prominences")
+                    if prominence is not None and prominence > 0
+                    else None
+                )
                 widths = properties.get("widths")
+                left_ips = properties.get("left_ips")
+                right_ips = properties.get("right_ips")
                 candidates = []
                 for local_position, local_index in enumerate(indices):
                     sample_index = start + int(local_index)
+                    width_um = None
+                    if widths is not None and left_ips is not None and right_ips is not None:
+                        left_x = self._interpolate_profile_x(
+                            raw_x[start:end], left_ips[local_position]
+                        )
+                        right_x = self._interpolate_profile_x(
+                            raw_x[start:end], right_ips[local_position]
+                        )
+                        if left_x is not None and right_x is not None:
+                            width_um = abs(right_x - left_x)
                     candidates.append(
                         {
                             "kind": kind,
@@ -114,7 +142,7 @@ class PeakDetectionTool:
                             "prominence": (
                                 float(prominences[local_position]) if prominences is not None else None
                             ),
-                            "width": float(widths[local_position]) if widths is not None else None,
+                            "width": width_um,
                             "_profile_distance": raw_x[sample_index],
                             "_prominence": (
                                 float(prominences[local_position]) if prominences is not None else None
@@ -122,6 +150,14 @@ class PeakDetectionTool:
                             "_detection_height": float(detection_signal[local_index]),
                         }
                     )
+                # Width is filtered first, then the existing physical-distance
+                # conflict resolution chooses among the remaining candidates.
+                if min_width is not None and min_width > 0:
+                    candidates = [
+                        candidate
+                        for candidate in candidates
+                        if candidate["width"] is not None and candidate["width"] >= min_width
+                    ]
                 for candidate in self._filter_by_profile_distance(candidates, min_distance):
                     candidate.pop("_profile_distance")
                     candidate.pop("_prominence")

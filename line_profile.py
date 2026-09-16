@@ -1371,7 +1371,7 @@ class LineProfile:
                 detect_valleys=self.dock.Chk_DetectValleys.isChecked(),
                 prominence=self.dock.Spn_Prominence.value() or None,
                 min_distance=self.dock.Spn_MinPeakDistance.value(),
-                width=self.dock.Spn_MinPeakWidth.value() or None,
+                min_width=self.dock.Spn_MinPeakWidth.value(),
                 smoothing_sigma=self.dock.Spn_SmoothingSigma.value(),
             )
         except (ImportError, ValueError, RuntimeError) as error:
