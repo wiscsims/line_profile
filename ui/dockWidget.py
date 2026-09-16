@@ -86,22 +86,23 @@ class DockWidget(QDockWidget, FORM_CLASS):
     def initTableView(self):
         myT = self.myTable
         myT.setModel(self.model)
-        myT.horizontalHeader().setMinimumSectionSize(6)
-        hiddenColumns = ['layerId', 'layerType']
-        [myT.setColumnHidden(self.model.getColumnIndex(c), True) for c in hiddenColumns]
-        # table width = 250
-        columnSettings = {
-            'state': {'width': 25},
-            'color': {'width': 6},
-            'layer': {'width': 95},
-            'data': {'width': 100},
-            'config': {'width': 24},
-        }
+        hidden_columns = ('layerId', 'layerType')
+        for name in hidden_columns:
+            myT.setColumnHidden(self.model.getColumnIndex(name), True)
 
-        for c, v in iter(columnSettings.items()):
-            c_index = self.model.getColumnIndex(c)
-            myT.setColumnWidth(c_index, v['width'])
-            myT.horizontalHeader().setSectionResizeMode(c_index, QHeaderView.Fixed)
+        header = myT.horizontalHeader()
+        for name in ('state', 'color', 'config'):
+            header.setSectionResizeMode(
+                self.model.getColumnIndex(name),
+                QHeaderView.ResizeToContents,
+            )
+        for name in ('layer', 'data'):
+            header.setSectionResizeMode(
+                self.model.getColumnIndex(name),
+                QHeaderView.Stretch,
+            )
+
+        myT.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.model.updateFlag = True
 
     def showSelectDialog(self, layer, row=-1):
