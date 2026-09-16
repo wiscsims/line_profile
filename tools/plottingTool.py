@@ -353,6 +353,8 @@ class PlottingTool:
                 # host Y axis (left side)
                 myAx.axis["left"].major_ticklabels.set_fontsize(8)
                 myAx.axis["left"].label.set_color(d['color_org'])
+                # Keep the vertical label inside narrow docked plot canvases.
+                myAx.axis["left"].label.set_pad(2)
 
             else:  # parasite axis (right side)
                 myAx.axis["right"].major_ticklabels.set_fontsize(8)
