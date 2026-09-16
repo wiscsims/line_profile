@@ -112,7 +112,7 @@ A marker on the profile line indicating the location of the data in the plot. `D
 
 ### Peak / Valley Detection
 
-Peak / Valley Detection finds local maxima and minima in a plotted raster profile. Peaks are shown as red upward triangles and valleys as blue downward triangles on the plot. Corresponding markers can also be displayed on the QGIS map.
+Peak / Valley Detection uses SciPy's `scipy.signal.find_peaks` to find local maxima and minima in a plotted raster profile. Valleys are detected from the inverted signal, while their reported values remain the original raster values. Peaks are shown as red upward triangles and valleys as blue downward triangles on the plot. Corresponding markers can also be displayed on the QGIS map.
 
 #### Automatic detection
 
@@ -133,7 +133,15 @@ The **Data** list contains only checked raster series that are currently availab
 | **Min width** | `0 µm` | Minimum feature width along the profile, measured in µm. Width is measured at approximately half of the feature prominence using the profile's actual x coordinates. A larger value rejects narrow features. `0` applies no width constraint. |
 | **Smoothing σ** | `0` | Standard deviation of Gaussian smoothing, measured in profile samples. A larger value reduces high frequency noise but can merge nearby features. `0` disables smoothing. Smoothing affects detection only; stored distance and intensity values come from the original profile. |
 
-Automatic detection uses SciPy. SciPy is loaded only when **Auto Detect** is requested. If it is unavailable, Line Profile asks for permission before installing it into the active QGIS user's `python/dependencies` directory. Manual editing remains available without SciPy.
+#### Units and filtering
+
+**Auto Detect** optionally smooths the profile, asks SciPy for peak or valley candidates and their properties, then applies the physical constraints below using the actual profile x coordinates. This keeps **Min distance** and **Min width** in µm even when sampling resolution or spacing changes.
+
+- **Min distance** filters peaks and valleys independently after candidate detection. Features closer than the specified distance compete by prominence, then detection-signal height.
+- **Min width** uses SciPy's fractional `left_ips` and `right_ips` width positions. Line Profile interpolates both positions on the actual profile x coordinates, so the stored feature `width` and the threshold are both in µm.
+- **Smoothing σ** and **Snap ±** remain sample-based controls.
+
+SciPy is loaded only when **Auto Detect** is requested. If it is unavailable, Line Profile asks for permission before installing it into the active QGIS user's `python/dependencies` directory. Manual editing remains available without SciPy.
 
 For a noisy profile, first increase **Prominence** slightly. If noise still produces clusters of points, increase **Min distance** or use a small **Smoothing σ**. If a real narrow feature is missing, reduce **Min width** or disable it with `0`.
 
