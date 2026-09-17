@@ -14,9 +14,8 @@ class PeakDetectionTool:
 
     @staticmethod
     def _scipy_functions():
-        from scipy.ndimage import gaussian_filter1d
         from scipy.signal import find_peaks
-        return find_peaks, gaussian_filter1d
+        return find_peaks
 
     @staticmethod
     def _valid_runs(values):
@@ -81,9 +80,8 @@ class PeakDetectionTool:
         prominence=None,
         min_distance=None,
         min_width=None,
-        smoothing_sigma=0.0,
     ):
-        find_peaks, gaussian_filter1d = self._scipy_functions()
+        find_peaks = self._scipy_functions()
         raw_x = [float("nan") if value is None else float(value) for value in x]
         raw = [float("nan") if value is None else float(value) for value in y]
         if len(x) != len(raw):
@@ -103,8 +101,6 @@ class PeakDetectionTool:
         ]
         for start, end in self._valid_runs(valid_values):
             signal = list(raw[start:end])
-            if smoothing_sigma and smoothing_sigma > 0:
-                signal = list(gaussian_filter1d(signal, smoothing_sigma))
             kinds = []
             if detect_peaks:
                 kinds.append(("peak", signal))

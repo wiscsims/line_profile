@@ -71,6 +71,13 @@ from .tools.peakDetectionTool import PeakDetectionTool
 from .tools.featurePointStore import FeaturePointStore
 from .tools.dependencyManager import SciPyDependencyManager
 from .tools.profileVisibility import distance_in_ranges, visible_profile_ranges
+from .tools.profileProcessing import (
+    SMOOTHING_GAUSSIAN,
+    process_profile,
+    processed_data,
+    smoothing_mode,
+    smoothing_signature,
+)
 
 # Import UI (dock and dialogs)
 from .ui.dockWidget import DockWidget
@@ -414,7 +421,16 @@ class LineProfile:
         except (RuntimeError, TypeError):
             pass
 
-    def myConnect(self):
+    def myConnect(self, changed_item=None):
+        if (
+            changed_item is not None
+            and hasattr(changed_item, "column")
+            and changed_item.column() == self.model.getColumnIndex("config")
+            and self.refresh_cached_processed_profiles()
+        ):
+            self.update_area_sampling_list()
+            self.refresh_peak_data_sources()
+            return
         self.updatePlot()
         self.update_area_sampling_list()
         self.refresh_peak_data_sources()
@@ -610,17 +626,95 @@ class LineProfile:
     def get_raster_layer_id(self, row, layer_id, element_name):
         return "{}_{}_{}".format(row, layer_id[-8:], element_name)
 
+    @staticmethod
+    def sampling_signature(config):
+        """Return settings that require sampled raw data to be regenerated."""
+        return (
+            bool(config["fullRes"]),
+            bool(config["areaSampling"]),
+            config["areaSamplingWidth"],
+            config["maxDistance"],
+        )
+
+    @staticmethod
+    def descriptor_config(config):
+        """Keep cached descriptors independent from subsequently edited configs."""
+        copied = dict(config)
+        copied["plotOptions"] = dict(config["plotOptions"])
+        return copied
+
+    def requires_gaussian_smoothing(self):
+        """Whether an enabled raster series needs SciPy to be rendered."""
+        for row in range(self.model.rowCount()):
+            if not self.model.getCheckState(row) or not self.model.getLayerType(row):
+                continue
+            config = self.model.getConfigs(row)
+            if (
+                smoothing_mode(config) == SMOOTHING_GAUSSIAN
+                and float(config.get("gaussianSigmaUm", 0.0)) > 0
+            ):
+                return True
+        return False
+
+    @staticmethod
+    def processed_profile_data(data, config):
+        """Make one shared processed copy while preserving sampled raw data."""
+        return process_profile(data, config)
+
+    def refresh_cached_processed_profiles(self):
+        """Reprocess cached raw profiles when only display processing changed."""
+        if not self.plotData or not self.pLines:
+            return False
+        descriptors = [
+            descriptor
+            for profile_data in self.plotData
+            for descriptor in profile_data
+        ]
+        if not descriptors:
+            return False
+        for descriptor in descriptors:
+            config = self.model.getConfigs(descriptor["row"])
+            if descriptor.get("sampling_signature") != self.sampling_signature(config):
+                return False
+        if self.requires_gaussian_smoothing() and not self.scipyDependencyManager.has_scipy():
+            self.scipyDependencyManager.ensure_scipy(
+                self.iface.mainWindow(), self.refresh_cached_processed_profiles
+            )
+            return True
+        for profile_index, profile_data in enumerate(self.plotData):
+            for descriptor in profile_data:
+                config = self.model.getConfigs(descriptor["row"])
+                descriptor["configs"] = self.descriptor_config(config)
+                descriptor["processed_data"] = self.processed_profile_data(
+                    descriptor["data"], config
+                )
+                if descriptor.get("raster_layer_id") is not None:
+                    signature = self.make_feature_data_signature(
+                        profile_index,
+                        self.pLines[profile_index],
+                        descriptor["layer"],
+                        descriptor["label"],
+                        config,
+                    )
+                    self.register_feature_data_signature(
+                        profile_index, descriptor["raster_layer_id"], signature
+                    )
+        self.draw_current_plot()
+        self.refresh_feature_map_markers()
+        self.update_feature_count()
+        return True
+
     def updatePlot(self):
         """sampling/correct data from raster and vector layers along with profile line,
         then create/update plot
         """
-        self.pLines = []
-
         if not self.model.updateFlag:
+            self.pLines = []
             self.switch_plot_logo(False)
             return
 
         if self.canvas.layerCount() == 0 or self.model.rowCount() == 0:
+            self.pLines = []
             self.profileLineTool.reset_all_profile()
             self.featurePointStore.clear_all()
             self.feature_data_signatures.clear()
@@ -630,6 +724,14 @@ class LineProfile:
             self.refresh_peak_data_sources()
             self.update_feature_count()
             return
+
+        if self.requires_gaussian_smoothing() and not self.scipyDependencyManager.has_scipy():
+            self.scipyDependencyManager.ensure_scipy(
+                self.iface.mainWindow(), self.updatePlot
+            )
+            return
+
+        self.pLines = []
 
         profPoints = self.profileLineTool.get_all_profile_points()
         for profile_index, points in enumerate(profPoints):
@@ -709,13 +811,15 @@ class LineProfile:
                 data.append(
                     {
                         "data": myData,
+                        "processed_data": self.processed_profile_data(myData, config),
                         "label": label,
-                        "configs": config,
+                        "configs": self.descriptor_config(config),
                         "layer": layer,
                         "layer_type": layer_type,
                         "color_org": color_org,
                         "row": r,
                         "raster_layer_id": raster_layer_id,
+                        "sampling_signature": self.sampling_signature(config),
                     }
                 )
                 if raster_layer_id is not None:
@@ -1172,11 +1276,7 @@ class LineProfile:
             export_data = []
 
             for d in data:
-                current_data = d["data"]
-                if d["configs"]["movingAverage"]:
-                    current_data = self.plotTool.calculateMovingAverage(
-                        current_data, d["configs"]["movingAverageN"]
-                    )
+                current_data = processed_data(d)
                 export_data.append((d, current_data))
                 curL = len(current_data[0])
                 myL = curL if curL >= myL else myL
@@ -1261,7 +1361,7 @@ class LineProfile:
         for descriptor in self.plotData[profile_index]:
             if descriptor.get("raster_layer_id") != raster_layer_id:
                 continue
-            x_values, y_values = descriptor["data"]
+            x_values, y_values = processed_data(descriptor)
             centers = self.dpTool.get_profile_sample_centers(profile_index, raster_layer_id)
             if not x_values or len(x_values) != len(y_values) or len(x_values) != len(centers):
                 if show_message:
@@ -1301,6 +1401,7 @@ class LineProfile:
             bool(config["areaSampling"]),
             config["areaSamplingWidth"],
             self.dpTool.pixel_size,
+            smoothing_signature(config),
         )
 
     def register_feature_data_signature(self, profile_index, raster_layer_id, signature):
@@ -1372,7 +1473,6 @@ class LineProfile:
                 prominence=self.dock.Spn_Prominence.value() or None,
                 min_distance=self.dock.Spn_MinPeakDistance.value(),
                 min_width=self.dock.Spn_MinPeakWidth.value(),
-                smoothing_sigma=self.dock.Spn_SmoothingSigma.value(),
             )
         except (ImportError, ValueError, RuntimeError) as error:
             self.log_message("Peak/Valley detection failed: {}".format(error), Qgis.Critical)

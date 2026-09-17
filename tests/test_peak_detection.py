@@ -40,18 +40,10 @@ def fake_find_peaks(signal, prominence=None, distance=None, width=None):
     return candidates, properties
 
 
-def fake_gaussian_filter(signal, sigma):
-    padded = [0] + list(signal) + [0]
-    return [
-        0.25 * padded[index] + 0.5 * padded[index + 1] + 0.25 * padded[index + 2]
-        for index in range(len(signal))
-    ]
-
-
 class PeakDetectionToolTest(unittest.TestCase):
     def setUp(self):
         self.tool = PeakDetectionTool()
-        self.tool._scipy_functions = lambda: (fake_find_peaks, fake_gaussian_filter)
+        self.tool._scipy_functions = lambda: fake_find_peaks
 
     def use_width_properties(self, index, left_ips, right_ips):
         def find_peaks(signal, **options):
@@ -61,7 +53,7 @@ class PeakDetectionToolTest(unittest.TestCase):
                 "right_ips": [right_ips],
             }
 
-        self.tool._scipy_functions = lambda: (find_peaks, fake_gaussian_filter)
+        self.tool._scipy_functions = lambda: find_peaks
 
     def test_detects_peaks_and_valleys(self):
         y = [0, 1, 5, 1, 0, 2, 8, 2, 0]
@@ -194,7 +186,7 @@ class PeakDetectionToolTest(unittest.TestCase):
             calls.append(options)
             return [], {}
 
-        self.tool._scipy_functions = lambda: (recording_find_peaks, fake_gaussian_filter)
+        self.tool._scipy_functions = lambda: recording_find_peaks
         self.tool.detect([0, 1, 2], [0, 5, 0], detect_valleys=False, min_distance=2.5)
         self.assertNotIn("distance", calls[0])
 
@@ -205,15 +197,9 @@ class PeakDetectionToolTest(unittest.TestCase):
             calls.append(options)
             return [], {}
 
-        self.tool._scipy_functions = lambda: (recording_find_peaks, fake_gaussian_filter)
+        self.tool._scipy_functions = lambda: recording_find_peaks
         self.tool.detect([0, 1, 2], [0, 5, 0], detect_valleys=False, min_width=2.5)
         self.assertEqual(calls[0]["width"], (None, None))
-
-    def test_smoothing_reports_raw_value(self):
-        y = [0, 0, 10, 0, 0]
-        result = self.tool.detect(range(len(y)), y, detect_valleys=False, smoothing_sigma=1)
-        self.assertEqual(result["peak"][0]["sample_index"], 2)
-        self.assertEqual(result["peak"][0]["value"], 10)
 
     def test_manual_snap_and_edge_windows(self):
         y = [4, 1, 7, 2, 5]

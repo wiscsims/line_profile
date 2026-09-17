@@ -4,7 +4,6 @@ A QGIS plugin for creating line profiles from vector and raster layers.
 
 ## Contents
 
-- [Contents](#contents)
 - [Requirement](#requirement)
 - [Installation](#installation)
   - [Install from QGIS Plugin Repository](#install-from-qgis-plugin-repository)
@@ -12,28 +11,29 @@ A QGIS plugin for creating line profiles from vector and raster layers.
 - [Quick Start](#quick-start)
 - [Usage](#usage)
   - [Creating Line Profiles](#creating-line-profiles)
+  - [Adding and Managing Plot Data](#adding-and-managing-plot-data)
   - [Plot Options](#plot-options)
+    - [Profile Smoothing](#profile-smoothing)
   - [Profile Lines](#profile-lines)
-  - [Tieline](#tieline)
+  - [Tie Lines](#tie-lines)
   - [Tracking Marker](#tracking-marker)
+  - [Sync Plot to Map Extent](#sync-plot-to-map-extent)
   - [Peak / Valley Detection](#peak--valley-detection)
   - [Save Plot](#save-plot)
 - [Options](#options)
-  - [Export Data](#export-data)
-  - [Import/Export Profile Line](#import/export-profile-line)
+  - [Export Profile Data](#export-profile-data)
+  - [Import and Export Profile Lines](#import-and-export-profile-lines)
   - [Scaling](#scaling)
+- [Development Tab](#development-tab)
+  - [Sampling Areas and Sampling Points](#sampling-areas-and-sampling-points)
+  - [Normalization of Profile Lines](#normalization-of-profile-lines)
 - [Manual QGIS Test](#manual-qgis-test)
-- [Developmental Features](#developmental-features)
-  - [Checking sampling points and area visually](#checking-sampling-points-and-area-visually)
-  - [Normalize to `Profile Line 1`](#normalize-to-`profile-line-1`)
-    - [By length](#by-length)
-    - [By segment](#by-segment)
 
 ## Requirement
 
 - QGIS 3.10 or newer. The plugin metadata declares the same minimum version.
 
-For `QGIS 2` users, use [older version]('htts://github.com/saburo/LineProfile_QGIS2').
+For QGIS 2 users, use the [older QGIS 2 version](https://github.com/saburo/LineProfile_QGIS2).
 
 ## Installation
 
@@ -42,77 +42,149 @@ There are two ways to install `Line Profile`.
 ### Install from QGIS Plugin Repository
 
 1. Open QGIS.
-
-2. From the QGIS menu, select `Plugins` > `Manege and Install Plugins`.
-   <a href="img/readme/plugin_install_menu.png" target="_blank"><img src="img/readme/plugin_install_menu.png" width="500" alt=""></a>
-
-3. Select the `All` tab on the far left. Search/find `Line Profile` from the plugin list and click `Install Plugin` button on the right bottom of `Manege and Install Plugins` window.
-   <a href="img/readme/plugin_install.png" target="_blank"><img src="img/readme/plugin_install.png" width="600" alt="Install Line Profile from the list"></a>
-
-4. Select `Installed Plugins` to make sure `Line Profile` was correctly installed. If it is not checked, click the checkbox (on the left of green puzzle piece icon) to activate the plugin. You also see `Line Profile` icon in the QGIS toolbar.
+2. From the QGIS menu, select `Plugins` > `Manage and Install Plugins`.
+   <a href="img/readme/plugin_install_menu.png" target="_blank"><img src="img/readme/plugin_install_menu.png" width="500" alt="Open the QGIS plugin manager"></a>
+3. Select the `All` tab, search for `Line Profile`, and click `Install Plugin`.
+   <a href="img/readme/plugin_install.png" target="_blank"><img src="img/readme/plugin_install.png" width="600" alt="Install Line Profile from the plugin list"></a>
+4. Select `Installed` and make sure `Line Profile` is enabled. The `Line Profile` icon should also appear in the QGIS toolbar.
 
 ### Install from ZIP file
 
-Manual installation is also available.
-
-1. Download `Line Profile` (line_profile.zip) from [WiscSIMS GitHub repository](https://github.com/wiscsims/line_profile/releases/latest).
-
+1. Download `line_profile.zip` from the [latest WiscSIMS Line Profile release](https://github.com/wiscsims/line_profile/releases/latest).
 2. Open QGIS.
-
-3. From the QGIS menu, select `Plugins` > `Manege and Install Plugins`.
-   <a href="img/readme/plugin_install_menu.png" target="_blank"><img src="img/readme/plugin_install_menu.png" width="500" alt=""></a>
-
-4. Select `Intall from ZIP` and hit `...` button to select downloaded `line_profile.zip` file.
-   <a href="img/readme/plugin_install_zip.png" target="_blank"><img src="img/readme/plugin_install_zip.png" width="600" alt="Install Line Profile from zip file"></a>
-
-5. Hit `Install Plugin` to install `Line Profile`.
-6. Select `Installed Plugins` to make sure `Line Profile` was correctly installed. You also see `Line Profile` icon in the QGIS toolbar.
+3. From the QGIS menu, select `Plugins` > `Manage and Install Plugins`.
+   <a href="img/readme/plugin_install_menu.png" target="_blank"><img src="img/readme/plugin_install_menu.png" width="500" alt="Open the QGIS plugin manager"></a>
+4. Select `Install from ZIP`, choose the downloaded `line_profile.zip`, and click `Install Plugin`.
+   <a href="img/readme/plugin_install_zip.png" target="_blank"><img src="img/readme/plugin_install_zip.png" width="600" alt="Install Line Profile from a ZIP file"></a>
+5. Select `Installed` and make sure `Line Profile` is enabled.
 
 ## Quick Start
 
-- Select a layer from the layer panel.
-- Hit `Add Data` button, then choose an item you want to plot.
-- Make a profile line with:
-  - Click on canvas to start your profile line (circle marker: ●).
-  - You can add vertics by clicking on canvas (●).
-  - Right click on canvas to terminate the profile line (square marker: ■).
-- Done! 🎉 - The line profile is generated automatically.
+1. Select a raster or vector layer in the QGIS Layers panel.
+2. Click **Add Data** in the Line Profile dock.
+3. Choose the raster band or numeric vector attribute to plot.
+4. Draw a profile line on the map:
+   - Left click to start the profile and add vertices.
+   - Right click to terminate the profile.
+5. The profile is sampled and plotted automatically.
+
+You can add multiple data series from different raster and vector layers. Two profile lines are available and can be selected from the profile-line selector.
 
 ## Usage
 
 ### Creating Line Profiles
 
-You can create profile lines with clicking on canvas.
+Profile lines are drawn directly on the QGIS map canvas.
 
-- **Start profile line/Create vertics**: `Left Click`
-- **Terminate profile line**: `Right Click`
-- **Cancel/Clear profile line**: `Double Click`
+- **Start profile line / add vertex:** `Left Click`
+- **Terminate profile line:** `Right Click`
+- **Clear/reset the current profile line:** use the **Clear** button next to the profile-line selector
+- **Reset while drawing:** `Double Click`
+
+A profile may contain multiple line segments. Segment boundaries are shown in the plot as vertical dotted lines.
+
+### Adding and Managing Plot Data
+
+Select a layer in the QGIS Layers panel and click **Add Data**.
+
+- For a **raster layer**, choose a raster band.
+- For a **vector layer**, choose a numeric attribute field.
+
+Each added data series appears in the table on the right side of the Plot tab.
+
+The table allows you to:
+
+- enable or disable a plotted series with its checkbox
+- change the plotted band or attribute
+- change the plot color
+- open the data configuration dialog
+
+Double-click the corresponding table cell to edit the color, data selection, or configuration.
+
+If a source layer is removed from the QGIS project, or is no longer visible when the plugin refreshes its data model, the corresponding plot entry is removed or disabled automatically.
 
 ### Plot Options
 
-- #### Raster Layer
+Open the configuration for an individual data series from the plot-data table.
 
-  TBU
+Common plot options include:
 
-- #### Vector Layers
+- enable or disable the series
+- change the plot label
+- change the plot color
+- select a marker symbol and marker size
+- change line width
+- remove the data series
 
-  TBU
+#### Raster Layer Options
+
+Raster profiles support the following options:
+
+- **Full Resolution**: sample using the raster's native resolution. For non-square raster pixels, Line Profile uses the finer of the raster X/Y resolutions to avoid undersampling the profile.
+- **Area Sampling (half width)**: sample multiple points perpendicular to the profile line and plot their average. The entered value is the half width in µm.
+
+Area Sampling is performed before profile smoothing.
+
+#### Profile Smoothing
+
+Raster profiles have one **Smoothing** selector. It creates one processed profile that is used consistently by the plot, Profile Data export, Peak / Valley Detection, and manual Peak / Valley snapping. The original sampled profile remains unchanged.
+
+- **None**: plot and analyse the sampled profile without smoothing.
+- **Moving Average**: apply an N-point centered moving average. The window size is measured in samples. Positions near the start or end that cannot contain a full window are left empty rather than shortening or shifting the profile.
+- **Gaussian**: apply Gaussian smoothing. **Gaussian σ** is entered in µm, then converted to samples separately for each continuous valid run using the run's median positive profile-distance spacing.
+
+Neither method crosses NoData gaps. A value of `0 µm` for Gaussian σ leaves the profile unchanged. Changing only smoothing settings reuses the cached raw samples when possible; it does not require a new raster sample pass. Gaussian smoothing requires SciPy. If SciPy is unavailable, Line Profile offers to install it for the active QGIS user profile and does not silently substitute the raw profile.
+
+#### Vector Layer Options
+
+Vector profiles project point features onto the profile line.
+
+- **Max Distance From The Line** sets the maximum perpendicular distance, in µm, at which a vector point can contribute to the profile.
+- The same maximum-distance setting is applied to other plotted fields from the same vector layer.
+- If features are selected in the vector layer, the profile uses the selected features; otherwise it uses all available features.
 
 ### Profile Lines
 
-There are two profile lines (<span style="color:red;">Profile Line 1</span> and <span style="color:blue;">Profile Line 2</span>).
+Line Profile provides two independent profile lines:
 
-### Tieline
+- <span style="color:red;">Profile Line 1</span>
+- <span style="color:blue;">Profile Line 2</span>
 
-A thin yellow line indicating where the each data point in the vector layer is projected on the profile line. `Default: On`.
+Choose the active line with the profile-line selector. The **Clear** button resets only the currently selected profile line.
+
+When both profile lines contain data, they are drawn together so the same data series can be compared along the two profiles.
+
+### Tie Lines
+
+**Tie Lines** is enabled by default.
+
+For vector data, a thin line is drawn on the map from each contributing vector point to the position where that point is projected onto the profile line. This makes it easier to see which map features correspond to values in the profile plot.
 
 ### Tracking Marker
 
-A marker on the profile line indicating the location of the data in the plot. `Default: Off`.
+**Tracking Marker** is disabled by default.
+
+When enabled, moving the pointer over the profile plot displays a marker at the corresponding position on the profile line in the QGIS map canvas. The coordinate conversion also follows the active profile normalization mode.
+
+### Sync Plot to Map Extent
+
+Enable **Sync plot to map extent** to display only the portions of the profile lines that are currently visible in the QGIS map canvas.
+
+When enabled:
+
+- zooming or panning the map automatically updates the visible portion of the plot
+- only profile sections intersecting the current map extent are drawn
+- if a profile enters the map extent more than once, separated visible sections remain separated in the plot rather than being joined together
+- the original profile-distance axis is preserved
+- profile data are not re-sampled simply because the map extent changed; the plugin reuses the existing sampled data and changes only what is displayed
+- smoothing is calculated from the full sampled profile before the map-extent mask is applied
+- the Tracking Marker follows only currently visible portions of the profile
+
+The option is disabled by default. Turning it off immediately restores the complete profile.
 
 ### Peak / Valley Detection
 
-Peak / Valley Detection uses SciPy's `scipy.signal.find_peaks` to find local maxima and minima in a plotted raster profile. Valleys are detected from the inverted signal, while their reported values remain the original raster values. Peaks are shown as red upward triangles and valleys as blue downward triangles on the plot. Corresponding markers can also be displayed on the QGIS map.
+Peak / Valley Detection uses SciPy's `scipy.signal.find_peaks` to find local maxima and minima in the current processed raster profile. Valleys are detected from the inverted signal. Peaks are shown as red upward triangles and valleys as blue downward triangles on the plot. Corresponding markers can also be displayed on the QGIS map.
 
 #### Automatic detection
 
@@ -131,19 +203,18 @@ The **Data** list contains only checked raster series that are currently availab
 | **Prominence** | `0` | Minimum vertical prominence in intensity units. A larger value rejects small bumps whose height relative to the surrounding baseline is too small. `0` applies no prominence constraint. |
 | **Min distance** | `0 µm` | Minimum separation between neighboring peaks or neighboring valleys along the profile, measured in µm. A larger value suppresses closely spaced detections of the same type. `0` applies no distance constraint. |
 | **Min width** | `0 µm` | Minimum feature width along the profile, measured in µm. Width is measured at approximately half of the feature prominence using the profile's actual x coordinates. A larger value rejects narrow features. `0` applies no width constraint. |
-| **Smoothing σ** | `0` | Standard deviation of Gaussian smoothing, measured in profile samples. A larger value reduces high frequency noise but can merge nearby features. `0` disables smoothing. Smoothing affects detection only; stored distance and intensity values come from the original profile. |
 
-#### Units and filtering
+#### Processing, units and filtering
 
-**Auto Detect** optionally smooths the profile, asks SciPy for peak or valley candidates and their properties, then applies the physical constraints below using the actual profile x coordinates. This keeps **Min distance** and **Min width** in µm even when sampling resolution or spacing changes.
+**Auto Detect** asks SciPy for peak or valley candidates and their properties from the same processed profile displayed in the plot, then applies the physical constraints below using the actual profile x coordinates. This keeps **Min distance** and **Min width** in µm even when sampling resolution or spacing changes. A detected feature's reported value is the processed-profile value at its sample position.
 
 - **Min distance** filters peaks and valleys independently after candidate detection. Features closer than the specified distance compete by prominence, then detection-signal height.
 - **Min width** uses SciPy's fractional `left_ips` and `right_ips` width positions. Line Profile interpolates both positions on the actual profile x coordinates, so the stored feature `width` and the threshold are both in µm.
-- **Smoothing σ** and **Snap ±** remain sample-based controls.
+- **Snap ±** remains sample-based.
 
-SciPy is loaded only when **Auto Detect** is requested. If it is unavailable, Line Profile asks for permission before installing it into the active QGIS user's `python/dependencies` directory. Manual editing remains available without SciPy.
+SciPy is required for **Auto Detect** and for Gaussian smoothing. If it is unavailable, Line Profile asks for permission before installing it into the active QGIS user's `python/dependencies` directory. Manual editing remains available without SciPy when Gaussian smoothing is not selected.
 
-For a noisy profile, first increase **Prominence** slightly. If noise still produces clusters of points, increase **Min distance** or use a small **Smoothing σ**. If a real narrow feature is missing, reduce **Min width** or disable it with `0`.
+For a noisy profile, first increase **Prominence** slightly. If noise still produces clusters of points, increase **Min distance** or choose a small smoothing setting in the raster data configuration. If a real narrow feature is missing, reduce **Min width** or disable it with `0`.
 
 #### Manual editing
 
@@ -152,8 +223,8 @@ Choose a mode and left click the profile plot:
 | Mode | Behavior |
 | --- | --- |
 | **Select** | Does not change Peak or Valley records. This is the default mode. |
-| **+ Peak** | Finds the largest raw value within **Snap ±** samples of the click and adds a manual peak there. |
-| **+ Valley** | Finds the smallest raw value within **Snap ±** samples of the click and adds a manual valley there. |
+| **+ Peak** | Finds the largest processed value within **Snap ±** samples of the click and adds a manual peak there. |
+| **+ Valley** | Finds the smallest processed value within **Snap ±** samples of the click and adds a manual valley there. |
 | **Delete** | Deletes the nearest automatic or manual point when it is within **Snap ±** samples of the click. |
 
 **Snap ±** defaults to `5` samples. This means an addition searches from five samples before the clicked sample through five samples after it, clipped at the ends of the profile. You do not need to click the exact peak or valley. Adding the same classification at the same sample does not create a duplicate. Adding the opposite classification at that sample reclassifies it as the newly selected manual type.
@@ -170,25 +241,96 @@ Manual points survive **Auto Detect** and **Clear Auto**. They are cleared when 
 
 ### Save Plot
 
-Plots can be saved as raster or vector file with various format (jpg, png, pdf, svg).
+Click **Save Plot** to save the current plot as one of the supported Matplotlib output formats:
+
+- PDF
+- PNG
+- JPEG
+- SVG
+
+The saved figure reflects the plot currently displayed. For example, when **Sync plot to map extent** is enabled, the saved plot reflects the currently visible profile ranges.
 
 ## Options
 
-You can export data and profile line, and import profile line
+The **Options** tab contains profile-data export, profile-line import/export, and distance scaling controls.
 
-### Export Data
+### Export Profile Data
 
-Data used in the plot can be exported as text data with csv format.
+Click **Profile Data** under **Export** to save the data for the currently selected profile line.
 
-### Import/Export Profile Line
+Supported formats are:
 
-TBU
+- tab-delimited text (`.txt`)
+- comma-separated values (`.csv`)
+
+Each plotted data series is exported with its profile distance and the exact same processed data values currently used by the plot and Peak / Valley Detection. Export preserves the full profile, including empty edge positions created by Moving Average.
+
+Map-extent synchronization is a display-only feature and does not truncate the exported profile data.
+
+### Import and Export Profile Lines
+
+#### Import
+
+Click **Profile Line** under **Import**.
+
+A profile can be imported from:
+
+- an ESRI Shapefile containing a single line feature
+- an eligible single-feature line layer already loaded in QGIS
+
+For multipart input, the first polyline part is used. After import, the line is drawn on the map and the profile is recalculated.
+
+#### Export
+
+Click **Profile Line** under **Export**.
+
+The export dialog can:
+
+- save the current profile line as an ESRI Shapefile
+- optionally add the saved Shapefile back to the QGIS map
+- optionally add a distance field to the currently plotted vector layer(s)
+
+The distance-field name is limited to 10 characters because the output workflow uses the Shapefile field-name limit.
 
 ### Scaling
 
-Pixel size (px/map unit) can be set manually. You can also import alignment files which you used in WiscSIMS session to set pixel size. For non-square raster pixels, full-resolution sampling uses the finer of the raster X/Y resolutions so the profile is not undersampled.
+The **Pixel Size** setting converts map/canvas distance to profile distance in µm. The default value is `1.000`.
 
-Profile lines are also exportable as shape file. You can reproduce the profile line and plots.
+Internally, Line Profile multiplies map distance by this value to create the x-axis distance used by the profile plot. The plot x-axis is therefore displayed as `Distance [µm]`.
+
+You can enter Pixel Size manually or click **Open Alignment File...** to read a WiscSIMS alignment JSON file. The plugin supports both older alignment files containing a `scale` value and newer alignment files containing stage/canvas reference-point pairs.
+
+For a valid alignment file, the calculated pixel size must be positive and finite.
+
+## Development Tab
+
+The **Development** tab contains tools for inspecting raster area sampling and for comparing two profile lines after normalization.
+
+### Sampling Areas and Sampling Points
+
+For raster profiles using Area Sampling, the plugin can display the sampling geometry directly on the QGIS map.
+
+- **Sampling Areas** shows the area used for perpendicular profile sampling.
+- **Sampling Points** shows the individual sampling positions.
+- Use the data selector in this group to choose the raster data series whose sampling geometry should be displayed.
+
+These visualization options are intended primarily for checking how raster values are being sampled and may be expensive for densely sampled profiles.
+
+### Normalization of Profile Lines
+
+Enable **Normalized to Profile Line 1** to compare Profile Line 2 using the distance scale of Profile Line 1.
+
+#### By Total Length
+
+**By Total Length** scales the complete x-axis length of each profile so that its total profile length matches Profile Line 1.
+
+#### By Segment
+
+**By Segment** normalizes each segment independently to the corresponding segment of Profile Line 1.
+
+Both profile lines must contain the same number of segments for segment-by-segment normalization.
+
+The normalization changes the displayed profile-distance coordinate only; it does not change the original map geometry.
 
 ## Manual QGIS Test
 
@@ -198,27 +340,4 @@ On macOS with QGIS installed in `/Applications/QGIS.app`, run:
 tests/run_qgis_manual_test.sh
 ```
 
-The launcher uses an isolated QGIS profile under `/private/tmp`, loads this working tree directly, and creates a sample raster, vector points, and a horizontal profile. Use **Auto Detect**, the manual point tools, **Clear Auto**, and **Create Point Layer** to exercise the complete peak/valley workflow without changing the normal QGIS profile.
-
-## Developmental Features
-
-### Checking sampling points and area visually
-
-_Heavy processing, though._
-
-- as a shaded area
-- as points
-
-<!-- ### Normalize to `Profile Line 1` -->
-
-### Normalization of profile lines
-
-Select checkbox if you want to normalize the Profile Line 2 to Profile Line 1.
-
-#### By length
-
-The length of profile line 2 is normalized by the `Profile Line 1`
-
-#### By segment
-
-This option needs profile lines which have same number of segments.
+The launcher uses an isolated QGIS profile under `/private/tmp`, loads the current working tree directly, and creates sample raster data, vector points, and a horizontal profile line. It can be used to check plotting, raster/vector sampling, profile-line behavior, map-extent synchronization, and other UI features without changing the normal QGIS profile.

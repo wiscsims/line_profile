@@ -4,6 +4,13 @@ from qgis.PyQt.QtWidgets import QDialog, QColorDialog, QMessageBox
 from qgis.PyQt import uic
 from qgis.PyQt.QtCore import QTimer
 
+from ..tools.profileProcessing import (
+    SMOOTHING_GAUSSIAN,
+    SMOOTHING_MOVING_AVERAGE,
+    SMOOTHING_NONE,
+    smoothing_mode,
+)
+
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'lpConfigPlotDialog.ui'))
 
@@ -25,8 +32,9 @@ class LPConfigPlotDialog(QDialog, FORM_CLASS):
         self.setParams()
 
         self.CBX_Data.currentTextChanged.connect(self.changeDataName)
-        self.CKB_MovAve.stateChanged.connect(self.changeMovAveState)
+        self.CMB_SmoothingMode.currentIndexChanged.connect(self.changeSmoothingMode)
         self.SPN_MovAveN.valueChanged.connect(self.changeMovAveN)
+        self.SPN_GaussianSigma.valueChanged.connect(self.changeGaussianSigma)
         self.CKB_FullRes.stateChanged.connect(self.changeFullResState)
         self.SPN_MaxDist.valueChanged.connect(self.handle_changeMaxDist)
         self.CKB_SamplingState.stateChanged.connect(self.handle_changeAreaSamplingState)
@@ -68,12 +76,35 @@ class LPConfigPlotDialog(QDialog, FORM_CLASS):
         self.model.setDataName(self.row, selectedText)
         self.TXT_PlotLabel.setText(selectedText)
 
-    def changeMovAveState(self, state):
-        self.model.setConfigs(self.row, {'movingAverage': state})
+    def changeSmoothingMode(self):
+        modes = (SMOOTHING_NONE, SMOOTHING_MOVING_AVERAGE, SMOOTHING_GAUSSIAN)
+        mode = modes[self.CMB_SmoothingMode.currentIndex()]
+        self.model.setConfigs(
+            self.row,
+            {
+                'smoothingMode': mode,
+                # Keep old project configurations readable by previous releases.
+                'movingAverage': int(mode == SMOOTHING_MOVING_AVERAGE) * 2,
+            },
+        )
+        self.updateSmoothingControls()
 
     def changeMovAveN(self):
         self.model.setConfigs(self.row,
                               {'movingAverageN': self.SPN_MovAveN.value()})
+
+    def changeGaussianSigma(self):
+        self.model.setConfigs(
+            self.row, {'gaussianSigmaUm': self.SPN_GaussianSigma.value()}
+        )
+
+    def updateSmoothingControls(self):
+        raster = bool(self.model.getLayerType(self.row))
+        mode = self.CMB_SmoothingMode.currentIndex()
+        self.CMB_SmoothingMode.setEnabled(raster)
+        self.SPN_MovAveN.setEnabled(raster and mode == 1)
+        self.LBL_GaussianSigma.setEnabled(raster and mode == 2)
+        self.SPN_GaussianSigma.setEnabled(raster and mode == 2)
 
     def changeFullResState(self, state):
         self.model.setConfigs(self.row, {'fullRes': state})
@@ -132,10 +163,13 @@ class LPConfigPlotDialog(QDialog, FORM_CLASS):
         # set data name and list
         self.setComboBoxItems(self.CBX_Data, self.model.getLayerId(r))
 
-        # set moving average
-        # config = self.model.getConfigs(r)
-        self.CKB_MovAve.setCheckState(self.configs['movingAverage'])
+        # Set the one shared smoothing method.  Legacy configurations with
+        # movingAverage enabled but no smoothingMode remain Moving Average.
+        mode = smoothing_mode(self.configs)
+        modes = (SMOOTHING_NONE, SMOOTHING_MOVING_AVERAGE, SMOOTHING_GAUSSIAN)
+        self.CMB_SmoothingMode.setCurrentIndex(modes.index(mode))
         self.SPN_MovAveN.setValue(self.configs['movingAverageN'])
+        self.SPN_GaussianSigma.setValue(self.configs.get('gaussianSigmaUm', 0.0))
         # set full resolution
         self.CKB_FullRes.setCheckState(self.configs['fullRes'])
 
@@ -150,19 +184,16 @@ class LPConfigPlotDialog(QDialog, FORM_CLASS):
         if self.model.getLayerType(r):  # Raster
             self.GRP_Raster.setEnabled(True)
             self.GRP_Vector.setEnabled(False)
-            self.CKB_MovAve.setEnabled(True)
-            self.SPN_MovAveN.setEnabled(True)
             self.CKB_SamplingState.setEnabled(True)
             self.SPN_SamplingWidth.setEnabled(True)
             self.SPN_MaxDist.setEnabled(False)
         else:  # Vector
             self.GRP_Raster.setEnabled(False)
             self.GRP_Vector.setEnabled(True)
-            self.CKB_MovAve.setEnabled(False)
-            self.SPN_MovAveN.setEnabled(False)
             self.SPN_MaxDist.setEnabled(True)
             self.CKB_SamplingState.setEnabled(False)
             self.SPN_SamplingWidth.setEnabled(False)
+        self.updateSmoothingControls()
 
     def handle_updatePlotLabel(self):
         self.timer_plot_label.start(1000)

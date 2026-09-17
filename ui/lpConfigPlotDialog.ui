@@ -227,7 +227,7 @@
             <property name="spacing">
              <number>-1</number>
             </property>
-            <item row="2" column="0">
+            <item row="3" column="0">
              <widget class="QCheckBox" name="CKB_SamplingState">
               <property name="text">
                <string>Area Sampling (half width): </string>
@@ -240,7 +240,7 @@
                <bool>false</bool>
               </property>
               <property name="suffix">
-               <string/>
+               <string> samples</string>
               </property>
               <property name="prefix">
                <string/>
@@ -251,9 +251,12 @@
               <property name="maximum">
                <number>100</number>
               </property>
+              <property name="toolTip">
+               <string>Moving Average window size in samples</string>
+              </property>
              </widget>
             </item>
-            <item row="2" column="1">
+            <item row="3" column="1">
              <widget class="QSpinBox" name="SPN_SamplingWidth">
               <property name="enabled">
                <bool>false</bool>
@@ -280,13 +283,28 @@
              </widget>
             </item>
             <item row="1" column="0">
-             <widget class="QCheckBox" name="CKB_MovAve">
-              <property name="text">
-               <string>Moving Average:</string>
+             <widget class="QComboBox" name="CMB_SmoothingMode">
+              <property name="toolTip">
+               <string>Apply one smoothing method to this profile before plotting, export, and Peak/Valley detection</string>
               </property>
-              <property name="checked">
-               <bool>false</bool>
-              </property>
+              <item><property name="text"><string>None</string></property></item>
+              <item><property name="text"><string>Moving Average</string></property></item>
+              <item><property name="text"><string>Gaussian</string></property></item>
+             </widget>
+            </item>
+            <item row="2" column="0">
+             <widget class="QLabel" name="LBL_GaussianSigma">
+              <property name="text"><string>Gaussian σ</string></property>
+             </widget>
+            </item>
+            <item row="2" column="1">
+             <widget class="QDoubleSpinBox" name="SPN_GaussianSigma">
+              <property name="enabled"><bool>false</bool></property>
+              <property name="toolTip"><string>Gaussian sigma along the profile in µm; 0 means no smoothing</string></property>
+              <property name="decimals"><number>3</number></property>
+              <property name="minimum"><double>0.000000000000000</double></property>
+              <property name="maximum"><double>999999.000000000000000</double></property>
+              <property name="suffix"><string> µm</string></property>
              </widget>
             </item>
            </layout>

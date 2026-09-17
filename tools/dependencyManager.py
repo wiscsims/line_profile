@@ -34,8 +34,8 @@ class SciPyDependencyManager:
 
         response = QMessageBox.question(
             parent,
-            "Peak / Valley Detection",
-            "Peak/Valley auto detection requires SciPy.\n\n"
+            "SciPy dependency",
+            "Gaussian profile smoothing and Peak/Valley auto detection require SciPy.\n\n"
             "SciPy is not available in the Python environment used by QGIS. "
             "Install SciPy for the current QGIS user profile now?",
             QMessageBox.Yes | QMessageBox.Cancel,
@@ -53,11 +53,11 @@ class SciPyDependencyManager:
         try:
             os.makedirs(self.prefix, exist_ok=True)
         except OSError as error:
-            QMessageBox.critical(parent, "Peak / Valley Detection", str(error))
+            QMessageBox.critical(parent, "SciPy dependency", str(error))
             return
 
         self.progress = QProgressDialog("Installing SciPy…", "Cancel", 0, 0, parent)
-        self.progress.setWindowTitle("Peak / Valley Detection")
+        self.progress.setWindowTitle("SciPy dependency")
         self.progress.setWindowModality(Qt.WindowModal)
         self.progress.setMinimumDuration(0)
 
@@ -110,7 +110,7 @@ class SciPyDependencyManager:
                     sys.path.insert(0, path)
             importlib.invalidate_caches()
             if self.has_scipy():
-                QMessageBox.information(parent, "Peak / Valley Detection", "SciPy was installed successfully.")
+                QMessageBox.information(parent, "SciPy dependency", "SciPy was installed successfully.")
                 callback = self.success_callback
                 self._clear_process_state()
                 if callback:
@@ -119,8 +119,8 @@ class SciPyDependencyManager:
 
         message = QMessageBox(parent)
         message.setIcon(QMessageBox.Critical)
-        message.setWindowTitle("Peak / Valley Detection")
-        message.setText("SciPy could not be installed. Manual Peak/Valley editing remains available.")
+        message.setWindowTitle("SciPy dependency")
+        message.setText("SciPy could not be installed. Gaussian smoothing and automatic Peak/Valley detection are unavailable.")
         message.setDetailedText((stderr or stdout or "pip returned no diagnostic output").strip())
         message.exec_()
         self._clear_process_state()

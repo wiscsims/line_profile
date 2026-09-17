@@ -64,6 +64,8 @@ class MyTableViewModel(QStandardItemModel):
         config = {
             'movingAverage': Qt.Unchecked,        # int
             'movingAverageN': self.movAveDefault,  # int
+            'smoothingMode': 'none',
+            'gaussianSigmaUm': 0.0,
             'maxDistance': mDist,                 # float
             'lineWidth': self.lineWidthDefault,   # float
             'fullRes': Qt.Unchecked,              # int
@@ -174,7 +176,7 @@ class MyTableViewModel(QStandardItemModel):
         config = self.getConfigs(row)
         myUpdateFlag = False
         for param, value in iter(confDict.items()):
-            if param in config:
+            if param in config or param in ('smoothingMode', 'gaussianSigmaUm'):
                 config[param] = value
                 myUpdateFlag = True
         if myUpdateFlag:

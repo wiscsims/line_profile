@@ -217,14 +217,6 @@
                <property name="value"><double>0.000000000000000</double></property>
               </widget>
              </item>
-             <item row="3" column="2"><widget class="QLabel" name="Lbl_SmoothingSigma"><property name="text"><string>Smoothing σ</string></property></widget></item>
-             <item row="3" column="3">
-              <widget class="QDoubleSpinBox" name="Spn_SmoothingSigma">
-               <property name="toolTip"><string>Gaussian sigma in profile samples; 0 means no smoothing</string></property>
-               <property name="decimals"><number>2</number></property>
-               <property name="maximum"><double>9999.000000000000000</double></property>
-              </widget>
-             </item>
              <item row="4" column="0" colspan="2"><widget class="QPushButton" name="Btn_AutoDetect"><property name="text"><string>Auto Detect</string></property></widget></item>
              <item row="4" column="2" colspan="2"><widget class="QPushButton" name="Btn_ClearAuto"><property name="text"><string>Clear Auto</string></property></widget></item>
              <item row="5" column="0"><widget class="QPushButton" name="Btn_ModeSelect"><property name="text"><string>Select</string></property><property name="checkable"><bool>true</bool></property><property name="checked"><bool>true</bool></property></widget></item>

@@ -7,6 +7,8 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import mpl_toolkits.axisartist as AA
 import numpy as np
 
+from .profileProcessing import processed_data
+
 
 class PlottingTool:
 
@@ -93,33 +95,6 @@ class PlottingTool:
     #         self.ax2.cla()
     #     self.formatAxes(self.ax, self.ax2)
     #     self.plotWidget.draw()
-
-    def calculateMovingAverage(self, data, N=10):
-        offset = 0 if N % 2.0 else 1
-        n2 = int(N / 2.0)
-        values = np.asarray(data[1], dtype=float)
-        maY = np.convolve(values, np.ones((N,)) / N, mode='valid')
-        maX = data[0][n2:len(data[0]) - n2 + offset]
-        return (maX, maY)
-
-    def movingAverage(
-        self,
-        host,
-        data,
-        color,
-        N=10,
-        linestyle='-',
-        raw_x=None,
-        visible_ranges=None,
-    ):
-        maX, maY = self.calculateMovingAverage(data, N)
-        if visible_ranges is not None and raw_x is not None:
-            offset = 0 if N % 2.0 else 1
-            n2 = int(N / 2.0)
-            ma_raw_x = raw_x[n2:len(raw_x) - n2 + offset]
-            maY = self.mask_visible_values(ma_raw_x, maY, visible_ranges)
-        movAve, = host.plot(maX, maY, color=color, linestyle=linestyle)
-        return movAve
 
     def sum_profile_line(self, profile_line):
         return reduce(lambda x, y: x + y['distance_pixel_sized'], profile_line, 0.0)
@@ -248,7 +223,8 @@ class PlottingTool:
                 """ normalization """
                 # normalizing data (x values) by base profile line
                 # (default - currently fixed: Profile Line 1)
-                raw_x = list(dd['data'][0])
+                profile_data = processed_data(dd)
+                raw_x = list(profile_data[0])
                 plot_x = list(raw_x)
                 if pLineNorm:
                     if pLineNorm_by_segment:
@@ -258,29 +234,18 @@ class PlottingTool:
                         # apply normalizatin factor of each profile line
                         plot_x = [x * normFactor[pIndex] for x in plot_x]
 
-                plot_data = [plot_x, dd['data'][1]]
-
-                """ moving average """
                 profile_ranges = (
                     visible_profile_ranges.get(pIndex, [])
                     if visible_profile_ranges is not None
                     else None
                 )
 
-                if dd['layer_type'] and dd['configs']['movingAverage']:
-                    self.movingAverage(myAx, plot_data, dd['color_org'],
-                                       dd['configs']['movingAverageN'],
-                                       linestyles[pIndex],
-                                       raw_x=raw_x,
-                                       visible_ranges=profile_ranges)
-
-                alpha = 0.1 if dd['layer_type'] and dd['configs']['movingAverage'] else symbolAlpha[pIndex]
-                color = ColorConverter().to_rgba(d['color_org'], alpha=alpha)
+                color = ColorConverter().to_rgba(d['color_org'], alpha=symbolAlpha[pIndex])
                 marker = d['configs']['plotOptions']['symbol']
                 marker_size = d['configs']['plotOptions']['symbolSize']
                 line_type = d['configs']['plotOptions']['lineType']
                 line_width = d['configs']['plotOptions']['lineWidth']
-                visible_y = self.mask_visible_values(raw_x, dd['data'][1], profile_ranges)
+                visible_y = self.mask_visible_values(raw_x, profile_data[1], profile_ranges)
                 my_tmp_Plot, = myAx.plot(plot_x, visible_y,
                                          label=dd['label'], color=color,
                                          linestyle=linestyles[pIndex],
