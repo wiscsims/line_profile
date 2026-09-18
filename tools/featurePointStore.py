@@ -1,5 +1,7 @@
 import uuid
 
+from .rangeUtils import distance_in_ranges, merge_ranges
+
 
 class FeaturePointStore:
     """Authoritative, graphics-independent Peak/Valley record store."""
@@ -42,8 +44,8 @@ class FeaturePointStore:
 
     def replace_auto(self, profile_index, raster_layer_id, records):
         key = self._key(profile_index, raster_layer_id)
-        manual = [item for item in self.records.get(key, []) if item["source"] == "manual"]
-        manual_samples = {item["sample_index"] for item in manual}
+        curated = [item for item in self.records.get(key, []) if item["source"] != "auto"]
+        curated_samples = {item["sample_index"] for item in curated}
         automatic = []
         seen = set()
         for source_record in records:
@@ -53,17 +55,80 @@ class FeaturePointStore:
             record["source"] = "auto"
             record.setdefault("id", uuid.uuid4().hex)
             identity = record["kind"], record["sample_index"]
-            if record["sample_index"] in manual_samples or identity in seen:
+            if record["sample_index"] in curated_samples or identity in seen:
                 continue
             seen.add(identity)
             automatic.append(record)
-        combined = manual + automatic
+        combined = curated + automatic
         combined.sort(key=lambda item: (item["sample_index"], item["kind"]))
         if combined:
             self.records[key] = combined
         else:
             self.records.pop(key, None)
         return list(combined)
+
+    def records_in_ranges(self, profile_index, raster_layer_id, ranges):
+        ranges = merge_ranges(ranges)
+        return [
+            item
+            for item in self.records_for(profile_index, raster_layer_id)
+            if distance_in_ranges(item["distance"], ranges)
+        ]
+
+    def replace_auto_in_ranges(self, profile_index, raster_layer_id, records, ranges):
+        """Replace all automatic records with results from the supplied raw µm ranges."""
+        ranges = merge_ranges(ranges)
+        key = self._key(profile_index, raster_layer_id)
+        existing = self.records.get(key, [])
+        retained = [item for item in existing if item["source"] != "auto"]
+        curated_samples = {
+            item["sample_index"] for item in existing if item["source"] != "auto"
+        }
+        seen = set()
+        for source_record in records:
+            if not distance_in_ranges(source_record["distance"], ranges):
+                continue
+            record = dict(source_record)
+            record["profile_index"] = profile_index
+            record["raster_layer_id"] = raster_layer_id
+            record["source"] = "auto"
+            record.setdefault("id", uuid.uuid4().hex)
+            identity = record["kind"], record["sample_index"]
+            if record["sample_index"] in curated_samples or identity in seen:
+                continue
+            seen.add(identity)
+            retained.append(record)
+        retained.sort(key=lambda item: (item["sample_index"], item["kind"]))
+        if retained:
+            self.records[key] = retained
+        else:
+            self.records.pop(key, None)
+        return list(retained)
+
+    def clear_in_ranges(
+        self,
+        profile_index,
+        raster_layer_id,
+        ranges,
+        include_curated=False,
+    ):
+        """Remove records inside raw µm ranges, optionally including curated points."""
+        ranges = merge_ranges(ranges)
+        key = self._key(profile_index, raster_layer_id)
+        removed = []
+        retained = []
+        for item in self.records.get(key, []):
+            in_scope = distance_in_ranges(item["distance"], ranges)
+            removable = item["source"] == "auto" or include_curated
+            if in_scope and removable:
+                removed.append(item)
+            else:
+                retained.append(item)
+        if retained:
+            self.records[key] = retained
+        else:
+            self.records.pop(key, None)
+        return removed
 
     def clear_auto(self, profile_index, raster_layer_id):
         key = self._key(profile_index, raster_layer_id)
@@ -95,4 +160,3 @@ class FeaturePointStore:
         if not key_records:
             self.records.pop(key, None)
         return nearest
-

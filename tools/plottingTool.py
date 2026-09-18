@@ -8,6 +8,7 @@ import mpl_toolkits.axisartist as AA
 import numpy as np
 
 from .profileProcessing import processed_data
+from .detectionScope import ranges_for_plot
 
 
 class PlottingTool:
@@ -132,6 +133,8 @@ class PlottingTool:
         feature_profile_index = opt.get('featureProfileIndex')
         feature_raster_layer_id = opt.get('featureRasterLayerId')
         visible_profile_ranges = opt.get('visibleProfileRanges')
+        detection_scope_ranges = opt.get('detectionScopeRanges')
+        detection_scope_profile_index = opt.get('detectionScopeProfileIndex')
 
         dps = 'distance_pixel_sized'
 
@@ -169,6 +172,27 @@ class PlottingTool:
             if pLineNorm and pLineNorm_by_segment:
                 return ppc.profileX_to_plotX(distance, profile_index)
             return distance * normFactor[profile_index]
+
+        if (
+            detection_scope_ranges
+            and detection_scope_profile_index is not None
+            and 0 <= detection_scope_profile_index < len(pLines)
+        ):
+            converted_ranges = ranges_for_plot(
+                detection_scope_ranges,
+                lambda distance: profile_x_to_plot_x(
+                    distance, detection_scope_profile_index
+                ),
+            )
+            for start, end in converted_ranges:
+                self.host.axvspan(
+                    start,
+                    end,
+                    facecolor="#e6b800",
+                    alpha=0.10,
+                    edgecolor="none",
+                    zorder=0,
+                )
 
         # find index of longest profile line
         longestN = 0

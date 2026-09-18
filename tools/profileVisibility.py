@@ -1,5 +1,7 @@
 from qgis.core import QgsGeometry, QgsPointXY, QgsWkbTypes
 
+from .rangeUtils import distance_in_ranges, merge_ranges
+
 
 def _line_parts(geometry):
     """Return all line parts from a QGIS intersection geometry."""
@@ -16,21 +18,6 @@ def _line_parts(geometry):
     for child in geometry.asGeometryCollection():
         parts.extend(_line_parts(child))
     return parts
-
-
-def _merge_ranges(ranges, tolerance=1e-9):
-    """Merge only overlapping or immediately adjacent distance ranges."""
-    merged = []
-    for start, end in sorted(ranges):
-        if end < start:
-            start, end = end, start
-        if end - start <= tolerance:
-            continue
-        if merged and start <= merged[-1][1] + tolerance:
-            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
-        else:
-            merged.append((start, end))
-    return merged
 
 
 def profile_visible_ranges(profile_line, extent):
@@ -72,7 +59,7 @@ def profile_visible_ranges(profile_line, extent):
 
         cumulative_distance += segment_distance
 
-    return _merge_ranges(ranges)
+    return merge_ranges(ranges)
 
 
 def visible_profile_ranges(profile_lines, extent):
@@ -81,7 +68,3 @@ def visible_profile_ranges(profile_lines, extent):
         profile_index: profile_visible_ranges(profile_line, extent)
         for profile_index, profile_line in enumerate(profile_lines)
     }
-
-
-def distance_in_ranges(distance, ranges, tolerance=1e-9):
-    return any(start - tolerance <= distance <= end + tolerance for start, end in ranges)

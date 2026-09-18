@@ -71,6 +71,14 @@ from .tools.peakDetectionTool import PeakDetectionTool
 from .tools.featurePointStore import FeaturePointStore
 from .tools.dependencyManager import SciPyDependencyManager
 from .tools.profileVisibility import distance_in_ranges, visible_profile_ranges
+from .tools.detectionScope import (
+    SCOPE_CURRENT_MAP_EXTENT,
+    SCOPE_FULL_PROFILE,
+    SCOPE_SELECTED_RANGES,
+    detect_in_ranges,
+    full_profile_ranges,
+)
+from .tools.rangeUtils import format_ranges, merge_ranges, parse_ranges
 from .tools.profileProcessing import (
     SMOOTHING_GAUSSIAN,
     process_profile,
@@ -147,6 +155,8 @@ class LineProfile:
         self.pLines = []
         self.plotData = []
         self.current_visible_profile_ranges = None
+        self.detection_ranges = {index: [] for index in range(self.n_profile_lines)}
+        self.pending_detection_range_start = None
 
         # instancialize tools
         self.profileLineTool = ProfileLineTool(self.canvas)
@@ -468,8 +478,12 @@ class LineProfile:
         self.dock.Btn_OpenAlignmentFile.clicked.connect(self.import_alignment_file)
 
         self.dock.Cmb_PeakDataSource.currentIndexChanged.connect(self.handle_peak_context_changed)
+        self.dock.Cmb_DetectionScope.currentIndexChanged.connect(self.handle_detection_scope_changed)
+        self.dock.Txt_DetectionRanges.editingFinished.connect(self.handle_detection_ranges_edited)
+        self.dock.Btn_PickDetectionRange.toggled.connect(self.handle_detection_range_pick_toggled)
         self.dock.Btn_AutoDetect.clicked.connect(self.handle_auto_detect)
         self.dock.Btn_ClearAuto.clicked.connect(self.clear_auto_features)
+        self.dock.Btn_ClearInScope.clicked.connect(self.clear_features_in_scope)
         self.dock.Chk_ShowFeaturePoints.stateChanged.connect(self.refresh_feature_map_markers)
         self.dock.Btn_ClearAllFeatures.clicked.connect(self.clear_all_features)
         self.dock.Btn_CreatePointLayer.clicked.connect(self.create_feature_point_layer)
@@ -486,6 +500,7 @@ class LineProfile:
         self.timer_map_extent.timeout.connect(self.redraw_plot_for_map_extent)
         self.canvas.extentsChanged.connect(self.handle_map_extent_changed)
         self.refresh_peak_data_sources()
+        self.handle_detection_scope_changed()
         self.update_feature_count()
 
     def disconnectDock(self):
@@ -500,8 +515,12 @@ class LineProfile:
             (self.dock.Btn_ExportProfileData.clicked, self.exportProfileData),
             (self.dock.CmbBox_ProfileLine.currentIndexChanged, self.changeCurrentProfileLine),
             (self.dock.Cmb_PeakDataSource.currentIndexChanged, self.handle_peak_context_changed),
+            (self.dock.Cmb_DetectionScope.currentIndexChanged, self.handle_detection_scope_changed),
+            (self.dock.Txt_DetectionRanges.editingFinished, self.handle_detection_ranges_edited),
+            (self.dock.Btn_PickDetectionRange.toggled, self.handle_detection_range_pick_toggled),
             (self.dock.Btn_AutoDetect.clicked, self.handle_auto_detect),
             (self.dock.Btn_ClearAuto.clicked, self.clear_auto_features),
+            (self.dock.Btn_ClearInScope.clicked, self.clear_features_in_scope),
             (self.dock.Chk_ShowFeaturePoints.stateChanged, self.refresh_feature_map_markers),
             (self.dock.Btn_ClearAllFeatures.clicked, self.clear_all_features),
             (self.dock.Btn_CreatePointLayer.clicked, self.create_feature_point_layer),
@@ -878,6 +897,8 @@ class LineProfile:
             featureProfileIndex=self.getProfileIndex(),
             featureRasterLayerId=self.current_peak_raster_layer_id(),
             visibleProfileRanges=visible_ranges,
+            detectionScopeRanges=self.current_detection_ranges(),
+            detectionScopeProfileIndex=self.getProfileIndex(),
         )
 
     def get_visible_profile_ranges(self):
@@ -887,7 +908,10 @@ class LineProfile:
         if (
             not self.pluginIsActive
             or not getattr(self, "dock", None)
-            or not self.dock.Chk_SyncMapExtent.isChecked()
+            or not (
+                self.dock.Chk_SyncMapExtent.isChecked()
+                or self.current_detection_scope() == SCOPE_CURRENT_MAP_EXTENT
+            )
             or not self.pLines
             or not self.plotData
         ):
@@ -903,7 +927,10 @@ class LineProfile:
         if (
             self.pluginIsActive
             and getattr(self, "dock", None)
-            and self.dock.Chk_SyncMapExtent.isChecked()
+            and (
+                self.dock.Chk_SyncMapExtent.isChecked()
+                or self.current_detection_scope() == SCOPE_CURRENT_MAP_EXTENT
+            )
             and self.pLines
             and self.plotData
         ):
@@ -1165,6 +1192,10 @@ class LineProfile:
 
     def changeCurrentProfileLine(self, pIndex):
         self.profileLineTool.update_current_profile_line(pIndex)
+        self.pending_detection_range_start = None
+        if getattr(self, "dock", None):
+            self.dock.Btn_PickDetectionRange.setText("Pick")
+            self.refresh_detection_range_editor()
         if hasattr(self, "plotData"):
             self.updatePlot()
 
@@ -1349,6 +1380,87 @@ class LineProfile:
             return None
         return self.dock.Cmb_PeakDataSource.currentData()
 
+    def current_detection_scope(self):
+        scopes = (
+            SCOPE_FULL_PROFILE,
+            SCOPE_SELECTED_RANGES,
+            SCOPE_CURRENT_MAP_EXTENT,
+        )
+        if not getattr(self, "dock", None):
+            return SCOPE_FULL_PROFILE
+        index = self.dock.Cmb_DetectionScope.currentIndex()
+        return scopes[index] if 0 <= index < len(scopes) else SCOPE_FULL_PROFILE
+
+    def current_detection_ranges(self, context=None):
+        """Return the active scope as raw physical profile-distance ranges."""
+        scope = self.current_detection_scope()
+        if scope == SCOPE_FULL_PROFILE:
+            return None
+        profile_index = self.getProfileIndex()
+        if scope == SCOPE_SELECTED_RANGES:
+            return list(self.detection_ranges.get(profile_index, []))
+        if not self.pLines or profile_index < 0 or profile_index >= len(self.pLines):
+            return []
+        return self.get_visible_profile_ranges().get(profile_index, [])
+
+    def full_detection_ranges(self, context):
+        return full_profile_ranges(context["x"])
+
+    def refresh_detection_range_editor(self):
+        if not getattr(self, "dock", None):
+            return
+        ranges = self.detection_ranges.get(self.getProfileIndex(), [])
+        self.dock.Txt_DetectionRanges.blockSignals(True)
+        self.dock.Txt_DetectionRanges.setText(format_ranges(ranges))
+        self.dock.Txt_DetectionRanges.blockSignals(False)
+
+    def handle_detection_scope_changed(self, *args):
+        if not getattr(self, "dock", None):
+            return
+        selected = self.current_detection_scope() == SCOPE_SELECTED_RANGES
+        self.pending_detection_range_start = None
+        self.dock.Txt_DetectionRanges.setEnabled(selected)
+        self.dock.Btn_PickDetectionRange.setEnabled(selected)
+        if not selected:
+            self.dock.Btn_PickDetectionRange.setChecked(False)
+        self.dock.Btn_PickDetectionRange.setText("Pick")
+        self.refresh_detection_range_editor()
+        if self.pLines and self.plotData:
+            self.draw_current_plot()
+
+    def handle_detection_ranges_edited(self):
+        try:
+            ranges = parse_ranges(self.dock.Txt_DetectionRanges.text())
+        except ValueError as error:
+            QMessageBox.warning(
+                self.iface.mainWindow(), "Detection Scope", str(error)
+            )
+            self.refresh_detection_range_editor()
+            return
+        self.detection_ranges[self.getProfileIndex()] = ranges
+        self.pending_detection_range_start = None
+        self.dock.Btn_PickDetectionRange.setText("Pick")
+        if self.pLines and self.plotData:
+            self.draw_current_plot()
+
+    def handle_detection_range_pick_toggled(self, checked):
+        self.pending_detection_range_start = None
+        self.dock.Btn_PickDetectionRange.setText("Pick" if not checked else "Pick start")
+
+    def handle_detection_range_plot_click(self, raw_distance):
+        if self.pending_detection_range_start is None:
+            self.pending_detection_range_start = raw_distance
+            self.dock.Btn_PickDetectionRange.setText("Pick end")
+            return
+        profile_index = self.getProfileIndex()
+        ranges = self.detection_ranges.get(profile_index, [])
+        ranges.append((self.pending_detection_range_start, raw_distance))
+        self.detection_ranges[profile_index] = merge_ranges(ranges)
+        self.pending_detection_range_start = None
+        self.dock.Btn_PickDetectionRange.setText("Pick start")
+        self.refresh_detection_range_editor()
+        self.draw_current_plot()
+
     def current_peak_context(self, show_message=False):
         profile_index = self.getProfileIndex()
         raster_layer_id = self.current_peak_raster_layer_id()
@@ -1461,18 +1573,44 @@ class LineProfile:
                 "Enable Detect Peaks and/or Detect Valleys.",
             )
             return
+        scope = self.current_detection_scope()
+        ranges = (
+            self.full_detection_ranges(context)
+            if scope == SCOPE_FULL_PROFILE
+            else self.current_detection_ranges(context)
+        )
+        if not ranges:
+            self.featurePointStore.replace_auto_in_ranges(
+                context["profile_index"], context["raster_layer_id"], [], []
+            )
+            self.updatePlot()
+            QMessageBox.information(
+                self.iface.mainWindow(),
+                "Detection Scope",
+                "The active detection scope does not contain a profile range.",
+            )
+            return
         if not self.peakDetectionTool.scipy_available():
             self.scipyDependencyManager.ensure_scipy(self.iface.mainWindow(), self.handle_auto_detect)
             return
+        options = {
+            "detect_peaks": self.dock.Chk_DetectPeaks.isChecked(),
+            "detect_valleys": self.dock.Chk_DetectValleys.isChecked(),
+            "prominence": self.dock.Spn_Prominence.value() or None,
+            "min_distance": self.dock.Spn_MinPeakDistance.value(),
+            "min_width": self.dock.Spn_MinPeakWidth.value(),
+        }
         try:
-            results = self.peakDetectionTool.detect(
-                context["x"],
-                context["y"],
-                detect_peaks=self.dock.Chk_DetectPeaks.isChecked(),
-                detect_valleys=self.dock.Chk_DetectValleys.isChecked(),
-                prominence=self.dock.Spn_Prominence.value() or None,
-                min_distance=self.dock.Spn_MinPeakDistance.value(),
-                min_width=self.dock.Spn_MinPeakWidth.value(),
+            results = (
+                self.peakDetectionTool.detect(context["x"], context["y"], **options)
+                if scope == SCOPE_FULL_PROFILE
+                else detect_in_ranges(
+                    self.peakDetectionTool,
+                    context["x"],
+                    context["y"],
+                    ranges,
+                    **options
+                )
             )
         except (ImportError, ValueError, RuntimeError) as error:
             self.log_message("Peak/Valley detection failed: {}".format(error), Qgis.Critical)
@@ -1492,9 +1630,14 @@ class LineProfile:
                     }
                 )
                 records.append(record)
-        self.featurePointStore.replace_auto(
-            context["profile_index"], context["raster_layer_id"], records
-        )
+        if scope == SCOPE_FULL_PROFILE:
+            self.featurePointStore.replace_auto(
+                context["profile_index"], context["raster_layer_id"], records
+            )
+        else:
+            self.featurePointStore.replace_auto_in_ranges(
+                context["profile_index"], context["raster_layer_id"], records, ranges
+            )
         self.updatePlot()
 
     def clear_auto_features(self):
@@ -1504,15 +1647,57 @@ class LineProfile:
         self.featurePointStore.clear_auto(self.getProfileIndex(), raster_layer_id)
         self.updatePlot()
 
+    def clear_features_in_scope(self):
+        context = self.current_peak_context(show_message=True)
+        if context is None:
+            return
+        ranges = (
+            self.full_detection_ranges(context)
+            if self.current_detection_scope() == SCOPE_FULL_PROFILE
+            else self.current_detection_ranges(context)
+        )
+        if not ranges:
+            QMessageBox.information(
+                self.iface.mainWindow(),
+                "Detection Scope",
+                "The active detection scope does not contain a profile range.",
+            )
+            return
+        scoped = self.featurePointStore.records_in_ranges(
+            context["profile_index"], context["raster_layer_id"], ranges
+        )
+        if not scoped:
+            return
+        curated = [record for record in scoped if record["source"] != "auto"]
+        if curated:
+            response = QMessageBox.question(
+                self.iface.mainWindow(),
+                "Peak / Valley Detection",
+                "Clear points in the active scope, including {} manual/imported point(s)?".format(
+                    len(curated)
+                ),
+                QMessageBox.Yes | QMessageBox.Cancel,
+                QMessageBox.Cancel,
+            )
+            if response != QMessageBox.Yes:
+                return
+        self.featurePointStore.clear_in_ranges(
+            context["profile_index"],
+            context["raster_layer_id"],
+            ranges,
+            include_curated=True,
+        )
+        self.updatePlot()
+
     def clear_all_features(self):
         records = self.featurePointStore.all_records()
         if not records:
             return
-        if any(record["source"] == "manual" for record in records):
+        if any(record["source"] != "auto" for record in records):
             response = QMessageBox.question(
                 self.iface.mainWindow(),
                 "Peak / Valley Detection",
-                "Clear all automatic and manually curated Peak/Valley points?",
+                "Clear all automatic, manual, and imported Peak/Valley points?",
                 QMessageBox.Yes | QMessageBox.Cancel,
                 QMessageBox.Cancel,
             )
@@ -1538,12 +1723,17 @@ class LineProfile:
 
     def handle_feature_plot_click(self, event, norm_factors):
         button = getattr(event.button, "value", event.button)
-        if event.inaxes is None or event.xdata is None or button != 1 or self.dock.Btn_ModeSelect.isChecked():
+        if event.inaxes is None or event.xdata is None or button != 1:
             return
         context = self.current_peak_context(show_message=True)
         if context is None:
             return
         profile_x = self.plot_x_to_profile_x(event.xdata, context["profile_index"], norm_factors)
+        if self.dock.Btn_PickDetectionRange.isChecked():
+            self.handle_detection_range_plot_click(profile_x)
+            return
+        if self.dock.Btn_ModeSelect.isChecked():
+            return
         nearest_index = min(
             range(len(context["x"])),
             key=lambda index: abs(context["x"][index] - profile_x),

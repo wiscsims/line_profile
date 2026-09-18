@@ -63,6 +63,64 @@ class FeaturePointStoreTest(unittest.TestCase):
         self.assertEqual(self.store.records_for(0, "raster"), [])
         self.assertEqual(len(self.store.records_for(1, "raster")), 1)
 
+    def test_scoped_auto_replace_clears_auto_points_outside_scope(self):
+        self.store.replace_auto(
+            0,
+            "raster",
+            [record("peak", "auto", 2), record("peak", "auto", 8)],
+        )
+        self.store.replace_auto_in_ranges(
+            0,
+            "raster",
+            [record("valley", "auto", 4)],
+            [(0, 5)],
+        )
+        records = self.store.records_for(0, "raster")
+        self.assertEqual(
+            [(item["sample_index"], item["kind"]) for item in records],
+            [(4, "valley")],
+        )
+
+    def test_empty_scoped_auto_replace_clears_all_auto_points(self):
+        self.store.replace_auto(
+            0,
+            "raster",
+            [record("peak", "auto", 2), record("peak", "auto", 8)],
+        )
+        self.store.replace_auto_in_ranges(0, "raster", [], [])
+        self.assertEqual(self.store.records_for(0, "raster"), [])
+
+    def test_scoped_auto_replace_preserves_manual_and_imported_points(self):
+        manual = record("peak", "manual", 2)
+        imported = record("valley", "imported", 3)
+        self.store.records[(0, "raster")] = [manual, imported]
+        self.store.replace_auto_in_ranges(
+            0,
+            "raster",
+            [record("peak", "auto", 4)],
+            [(0, 5)],
+        )
+        records = self.store.records_for(0, "raster")
+        self.assertEqual(
+            [(item["sample_index"], item["source"]) for item in records],
+            [(2, "manual"), (3, "imported"), (4, "auto")],
+        )
+
+    def test_clear_in_scope_preserves_outside_and_curated_by_default(self):
+        self.store.records[(0, "raster")] = [
+            record("peak", "manual", 2),
+            record("valley", "imported", 3),
+            record("peak", "auto", 4),
+            record("peak", "auto", 8),
+        ]
+        removed = self.store.clear_in_ranges(0, "raster", [(0, 5)])
+        self.assertEqual([item["sample_index"] for item in removed], [4])
+        self.store.clear_in_ranges(0, "raster", [(0, 5)], include_curated=True)
+        self.assertEqual(
+            [item["sample_index"] for item in self.store.records_for(0, "raster")],
+            [8],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
