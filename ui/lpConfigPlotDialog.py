@@ -9,6 +9,7 @@ from ..tools.profileProcessing import (
     SMOOTHING_MOVING_AVERAGE,
     SMOOTHING_NONE,
     SMOOTHING_SAVGOL,
+    moving_average_window,
     smoothing_mode,
 )
 
@@ -98,8 +99,11 @@ class LPConfigPlotDialog(QDialog, FORM_CLASS):
         self.updateSmoothingControls()
 
     def changeMovAveN(self):
-        self.model.setConfigs(self.row,
-                              {'movingAverageN': self.SPN_MovAveN.value()})
+        window = moving_average_window(self.SPN_MovAveN.value())
+        blocked = self.SPN_MovAveN.blockSignals(True)
+        self.SPN_MovAveN.setValue(window)
+        self.SPN_MovAveN.blockSignals(blocked)
+        self.model.setConfigs(self.row, {'movingAverageN': window})
 
     def changeGaussianSigma(self):
         self.model.setConfigs(
@@ -120,6 +124,7 @@ class LPConfigPlotDialog(QDialog, FORM_CLASS):
         raster = bool(self.model.getLayerType(self.row))
         mode = self.CMB_SmoothingMode.currentIndex()
         self.CMB_SmoothingMode.setEnabled(raster)
+        self.LBL_MovAveN.setEnabled(raster and mode == 1)
         self.SPN_MovAveN.setEnabled(raster and mode == 1)
         self.LBL_GaussianSigma.setEnabled(raster and mode == 2)
         self.SPN_GaussianSigma.setEnabled(raster and mode == 2)
@@ -195,7 +200,9 @@ class LPConfigPlotDialog(QDialog, FORM_CLASS):
             SMOOTHING_SAVGOL,
         )
         self.CMB_SmoothingMode.setCurrentIndex(modes.index(mode))
-        self.SPN_MovAveN.setValue(self.configs['movingAverageN'])
+        window = moving_average_window(self.configs['movingAverageN'])
+        self.SPN_MovAveN.setMaximum(max(self.SPN_MovAveN.maximum(), window))
+        self.SPN_MovAveN.setValue(window)
         self.SPN_GaussianSigma.setValue(self.configs.get('gaussianSigmaUm', 0.0))
         self.SPN_SavgolWindow.setValue(self.configs.get('savgolWindowUm', 5.0))
         self.SPN_SavgolPolyOrder.setValue(self.configs.get('savgolPolyOrder', 2))

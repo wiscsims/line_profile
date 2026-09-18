@@ -3,6 +3,7 @@ import unittest
 
 from tools.detectionScope import detect_in_ranges
 from tools.peakDetectionTool import (
+    PROMINENCE_ABSOLUTE,
     PROMINENCE_LOCAL_MAD,
     PROMINENCE_LOCAL_RANGE,
     PROMINENCE_LOCAL_SD,
@@ -106,13 +107,54 @@ class AdaptiveProminenceTest(unittest.TestCase):
     def test_window_uses_raw_distance_and_available_finite_edge(self):
         threshold = self.tool._prominence_threshold(
             candidate(0, 1),
-            [0.0, 0.25, 10.0],
-            [2.0, 4.0, 100.0],
+            [0.0, 0.25, 0.5, 10.0],
+            [2.0, 3.0, 4.0, 100.0],
             PROMINENCE_LOCAL_RANGE,
             50.0,
             1.0,
         )
         self.assertEqual(threshold, 1.0)
+
+    def test_one_or_two_sample_window_uses_current_run_statistic(self):
+        for mode, expected in ((PROMINENCE_LOCAL_RANGE, 0.4),
+                               (PROMINENCE_LOCAL_SD, 2 * math.sqrt(50)),
+                               (PROMINENCE_LOCAL_MAD, 2 * 1.4826 * 5)):
+            for window in (0.1, 2):
+                with self.subTest(mode=mode, window=window):
+                    # Candidate at the edge: window 0.1 contains one sample, 2 contains two.
+                    threshold = self.tool._prominence_threshold(
+                        candidate(0, 1), list(range(5)), [0, 5, 10, 15, 20], mode, 2, window
+                    )
+                    self.assertAlmostEqual(threshold, expected)
+
+    def test_runs_shorter_than_three_have_zero_adaptive_threshold(self):
+        for mode in (PROMINENCE_LOCAL_RANGE, PROMINENCE_LOCAL_SD, PROMINENCE_LOCAL_MAD):
+            for values in ([2], [2, 99]):
+                self.assertEqual(self.tool._prominence_threshold(
+                    candidate(0, 1), list(range(len(values))), values, mode, 50, 0.1
+                ), 0)
+
+    def test_absolute_is_unchanged_for_tiny_windows_and_short_runs(self):
+        self.assertEqual(self.tool._prominence_threshold(
+            candidate(0, 1), [0], [2], PROMINENCE_ABSOLUTE, 50, 0.1
+        ), 50)
+
+    def test_tiny_window_fallback_respects_nan_and_scope_for_all_modes(self):
+        for mode in (PROMINENCE_LOCAL_RANGE, PROMINENCE_LOCAL_SD, PROMINENCE_LOCAL_MAD):
+            with self.subTest(mode=mode):
+                options = dict(prominence_mode=mode, prominence=50 if mode == PROMINENCE_LOCAL_RANGE else 1)
+                values = [0, 3, 1, None, 0, 1000, 100, None, -1, -4, 0]
+                small = self.tool.detect(range(11), values, prominence_window=0.1, **options)
+                full = self.tool.detect(range(11), values, prominence_window=10000, **options)
+                self.assertEqual(small, full)
+                self.assertIn(1, [p["sample_index"] for p in small["peak"]])
+                self.assertIn(9, [p["sample_index"] for p in small["valley"]])
+                # No NaN barriers here: only Scope excludes the large intervening signal.
+                scoped_values = [0, 3, 1, 10000, 1000, 10000, 1000, 10000, -1, -4, 0]
+                scoped = detect_in_ranges(self.tool, list(range(11)), scoped_values, [(0, 2), (8, 10)],
+                                          prominence_window=0.1, **options)
+                self.assertEqual([p["sample_index"] for p in scoped["peak"]], [1])
+                self.assertEqual([p["sample_index"] for p in scoped["valley"]], [9])
 
     def test_mad_is_robust_to_strong_outlier(self):
         values = [0.0, 0.0, 1.0, 0.0, 50.0]

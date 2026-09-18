@@ -38,12 +38,6 @@
    <layout class="QHBoxLayout" name="horizontalLayout_2">
     <item>
      <widget class="QTabWidget" name="tabWidget_2">
-      <property name="minimumSize">
-       <size>
-        <width>0</width>
-        <height>242</height>
-       </size>
-      </property>
       <property name="currentIndex">
        <number>1</number>
       </property>
@@ -208,7 +202,7 @@
              <item row="3" column="2"><widget class="QLabel" name="Lbl_AdaptiveWindow"><property name="text"><string>Window [µm]</string></property><property name="toolTip"><string>Total physical width centered on each candidate; finite run and Detection Scope boundaries are never crossed</string></property></widget></item>
              <item row="3" column="3">
               <widget class="QDoubleSpinBox" name="Spn_AdaptiveWindow">
-               <property name="toolTip"><string>Total physical window width centered on each candidate, in µm; available samples are used at finite-run edges without padding</string></property>
+               <property name="toolTip"><string>Total physical window width centered on each candidate, in µm. With fewer than 3 samples, use the current finite detection run; if that also has fewer than 3, the threshold is 0. Never crosses NaN or Detection Scope boundaries; no padding.</string></property>
                <property name="decimals"><number>2</number></property>
                <property name="minimum"><double>0.010000000000000</double></property>
                <property name="maximum"><double>999999.000000000000000</double></property>

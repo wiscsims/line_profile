@@ -7,6 +7,8 @@ from tools.profileProcessing import (
     SMOOTHING_MOVING_AVERAGE,
     SMOOTHING_NONE,
     SMOOTHING_SAVGOL,
+    DEFAULT_MOVING_AVERAGE_WINDOW,
+    moving_average_window,
     process_profile,
     processed_data,
     smoothing_mode,
@@ -42,6 +44,58 @@ class ProfileProcessingTest(unittest.TestCase):
         self.assertEqual(y_values[1], 4.0 / 3.0)
         self.assertTrue(math.isnan(y_values[3]))
         self.assertEqual(y_values[5], 2.0)
+
+    def test_default_and_legacy_moving_average_windows_are_odd(self):
+        self.assertEqual(DEFAULT_MOVING_AVERAGE_WINDOW, 11)
+        self.assertEqual(moving_average_window(), 11)
+        for requested, expected in ((10, 11), (11, 11), (20, 21), (1, 1), (0, 1)):
+            with self.subTest(requested=requested):
+                self.assertEqual(moving_average_window(requested), expected)
+                _, values = process_profile((list(range(31)), list(range(31))),
+                                            {"movingAverage": True, "movingAverageN": requested})
+                finite = [i for i, y in enumerate(values) if math.isfinite(y)]
+                self.assertEqual(finite, list(range(expected // 2, 31 - expected // 2)))
+                self.assertEqual([values[i] for i in finite], finite)
+
+    def test_centered_impulse_is_symmetric_without_peak_shift(self):
+        raw = (list(range(31)), [11 if i == 15 else 0 for i in range(31)])
+        for config in ({"movingAverage": True}, {"movingAverage": True, "movingAverageN": 10}):
+            x_values, values = process_profile(raw, config)
+            self.assertEqual(x_values, raw[0])
+            self.assertEqual(len(values), 31)
+            self.assertEqual(values[5:26], values[5:26][::-1])
+            plateau = [i for i, y in enumerate(values) if y == 1]
+            self.assertEqual(plateau, list(range(10, 21)))
+            self.assertEqual((plateau[0] + plateau[-1]) / 2, 15)
+        self.assertEqual(raw[1][15], 11)
+
+    def test_effective_window_is_used_in_smoothing_signature(self):
+        base = {"movingAverage": True}
+        self.assertEqual(smoothing_signature(base), smoothing_signature({**base, "movingAverageN": 11}))
+        self.assertEqual(smoothing_signature({**base, "movingAverageN": 10}),
+                         smoothing_signature({**base, "movingAverageN": 11}))
+        self.assertNotEqual(smoothing_signature({**base, "movingAverageN": 11}),
+                            smoothing_signature({**base, "movingAverageN": 12}))
+
+    def test_legacy_even_window_remains_symmetric_at_nan_gap(self):
+        _, values = process_profile(
+            (list(range(31)), [1] * 15 + [None] + [100] * 15),
+            {"movingAverage": True, "movingAverageN": 10},
+        )
+        self.assertEqual([i for i, y in enumerate(values) if math.isfinite(y)],
+                         list(range(5, 10)) + list(range(21, 26)))
+        self.assertEqual(values[5:10], [1] * 5)
+        self.assertEqual(values[21:26], [100] * 5)
+
+    def test_actual_peak_detector_retains_centered_impulse_position(self):
+        if not PeakDetectionTool.scipy_available():
+            self.skipTest("SciPy is not installed in this Python environment")
+        processed = process_profile(
+            (list(range(31)), [11 if i == 15 else 0 for i in range(31)]),
+            {"movingAverage": True, "movingAverageN": 10},
+        )
+        result = PeakDetectionTool().detect(*processed, detect_valleys=False)
+        self.assertEqual([p["distance"] for p in result["peak"]], [15])
 
     def test_gaussian_sigma_zero_is_a_no_op_without_scipy(self):
         raw = ([0, 1, 2], [2, 5, 2])

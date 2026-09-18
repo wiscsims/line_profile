@@ -197,7 +197,10 @@ class PeakDetectionTool:
             for x_value, y_value in zip(run_x, run_y)
             if abs(x_value - center_x) <= half_window
         ]
-        if not local_values:
+        if len(local_values) < 3:
+            # run_y is already bounded by both finite data and Detection Scope.
+            local_values = run_y
+        if len(local_values) < 3:
             return 0.0
         if prominence_mode == PROMINENCE_LOCAL_RANGE:
             return (max(local_values) - min(local_values)) * value / 100.0

@@ -1532,6 +1532,7 @@ class LineProfile:
             combo.addItem("{} — {}".format(layer.name(), data_name), raster_layer_id)
         selected_index = combo.findData(selected_id)
         combo.setCurrentIndex(selected_index if selected_index >= 0 else (0 if combo.count() else -1))
+        combo.setToolTip(combo.currentText())
         combo.blockSignals(False)
         has_source = combo.currentIndex() >= 0
         self.dock.Btn_AutoDetect.setEnabled(has_source)
@@ -1571,9 +1572,7 @@ class LineProfile:
         if not getattr(self, "dock", None):
             return
         mode = self.current_prominence_mode()
-        adaptive = mode != PROMINENCE_ABSOLUTE
-        self.dock.Lbl_AdaptiveWindow.setEnabled(adaptive)
-        self.dock.Spn_AdaptiveWindow.setEnabled(adaptive)
+        self.dock.updateConditionalControls()
         labels = {
             PROMINENCE_ABSOLUTE: "Minimum",
             PROMINENCE_LOCAL_RANGE: "Range %",
@@ -1618,8 +1617,7 @@ class LineProfile:
             return
         selected = self.current_detection_scope() == SCOPE_SELECTED_RANGES
         self.pending_detection_range_start = None
-        self.dock.Txt_DetectionRanges.setEnabled(selected)
-        self.dock.Btn_PickDetectionRange.setEnabled(selected)
+        self.dock.updateConditionalControls()
         if not selected:
             self.dock.Btn_PickDetectionRange.setChecked(False)
         self.dock.Btn_PickDetectionRange.setText("Pick")
@@ -1779,10 +1777,6 @@ class LineProfile:
             else self.current_detection_ranges(context)
         )
         if not ranges:
-            self.featurePointStore.replace_auto_in_ranges(
-                context["profile_index"], context["raster_layer_id"], [], []
-            )
-            self.updatePlot()
             QMessageBox.information(
                 self.iface.mainWindow(),
                 "Detection Scope",

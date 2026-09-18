@@ -108,7 +108,7 @@ def parse_import_rows(rows, default_type=None):
 
 
 def map_imported_points(entries, x_values, y_values, centers, profile_index, raster_layer_id, data_label):
-    """Snap imported raw distances to current samples without clamping."""
+    """Snap within the full raw extent to finite processed samples with map positions."""
     finite_indexes = [
         index for index, value in enumerate(x_values) if isinstance(value, (int, float)) and math.isfinite(value)
     ]
@@ -116,6 +116,19 @@ def map_imported_points(entries, x_values, y_values, centers, profile_index, ras
         return [], [entry["line_number"] for entry in entries]
     minimum = min(x_values[index] for index in finite_indexes)
     maximum = max(x_values[index] for index in finite_indexes)
+    eligible_indexes = []
+    for index in finite_indexes:
+        if index >= len(y_values) or index >= len(centers):
+            continue
+        try:
+            map_x, map_y = point_coordinates(centers[index])
+            usable = all(math.isfinite(value) for value in (y_values[index], map_x, map_y))
+        except (TypeError, ValueError, IndexError, AttributeError):
+            usable = False
+        if usable:
+            eligible_indexes.append(index)
+    if not eligible_indexes:
+        return [], [entry["line_number"] for entry in entries]
     records = []
     skipped = []
     for entry in entries:
@@ -123,7 +136,7 @@ def map_imported_points(entries, x_values, y_values, centers, profile_index, ras
         if distance < minimum or distance > maximum:
             skipped.append(entry["line_number"])
             continue
-        sample_index = min(finite_indexes, key=lambda index: abs(x_values[index] - distance))
+        sample_index = min(eligible_indexes, key=lambda index: abs(x_values[index] - distance))
         records.append(
             {
                 "kind": entry["kind"],

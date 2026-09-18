@@ -7,6 +7,13 @@ SMOOTHING_NONE = "none"
 SMOOTHING_MOVING_AVERAGE = "moving_average"
 SMOOTHING_GAUSSIAN = "gaussian"
 SMOOTHING_SAVGOL = "savitzky_golay"
+DEFAULT_MOVING_AVERAGE_WINDOW = 11
+
+
+def moving_average_window(value=DEFAULT_MOVING_AVERAGE_WINDOW):
+    """Normalize legacy/even sample counts upward to a centered odd window."""
+    window = max(1, int(value))
+    return window if window % 2 else window + 1
 
 
 def smoothing_mode(config):
@@ -26,7 +33,7 @@ def smoothing_signature(config):
     """Return the settings that change the processed profile values."""
     return (
         smoothing_mode(config),
-        int(config.get("movingAverageN", 10)),
+        moving_average_window(config.get("movingAverageN", DEFAULT_MOVING_AVERAGE_WINDOW)),
         float(config.get("gaussianSigmaUm", 0.0)),
         float(config.get("savgolWindowUm", 0.0)),
         int(config.get("savgolPolyOrder", 2)),
@@ -53,10 +60,10 @@ def _finite_runs(x_values, y_values):
 def _moving_average(values, window):
     """Centered moving average with NaN edges where no full window exists."""
     result = [float("nan")] * len(values)
-    left = window // 2
-    right = window - left - 1
-    for index in range(left, len(values) - right):
-        result[index] = sum(values[index - left:index + right + 1]) / window
+    window = moving_average_window(window)
+    half = window // 2
+    for index in range(half, len(values) - half):
+        result[index] = sum(values[index - half:index + half + 1]) / window
     return result
 
 
@@ -127,7 +134,7 @@ def process_profile(
         return list(raw_x), result
 
     if mode == SMOOTHING_MOVING_AVERAGE:
-        window = max(1, int(config.get("movingAverageN", 10)))
+        window = moving_average_window(config.get("movingAverageN", DEFAULT_MOVING_AVERAGE_WINDOW))
         for start, end in _finite_runs(x_values, y_values):
             result[start:end] = _moving_average(y_values[start:end], window)
         return list(raw_x), result

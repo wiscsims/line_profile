@@ -52,7 +52,11 @@ class FeaturePointStore:
         sample_index = record["sample_index"]
 
         same = [item for item in key_records if item["sample_index"] == sample_index]
-        if len(same) == 1 and same[0]["kind"] == record["kind"]:
+        if (
+            len(same) == 1
+            and same[0]["kind"] == record["kind"]
+            and same[0]["source"] in ("manual", "imported")
+        ):
             return same[0]
 
         key_records[:] = [item for item in key_records if item["sample_index"] != sample_index]
@@ -94,15 +98,20 @@ class FeaturePointStore:
         ]
 
     def replace_auto_in_ranges(self, profile_index, raster_layer_id, records, ranges):
-        """Replace all automatic records with results from the supplied raw µm ranges."""
+        """Replace automatic records only inside the supplied raw µm ranges."""
         ranges = merge_ranges(ranges)
         key = self._key(profile_index, raster_layer_id)
         existing = self.records.get(key, [])
-        retained = [item for item in existing if item["source"] != "auto"]
+        if not ranges:
+            return list(existing)
+        retained = [
+            item for item in existing
+            if item["source"] != "auto" or not distance_in_ranges(item["distance"], ranges)
+        ]
         curated_samples = {
             item["sample_index"] for item in existing if item["source"] != "auto"
         }
-        seen = set()
+        seen = {(item["kind"], item["sample_index"]) for item in retained}
         for source_record in records:
             if not distance_in_ranges(source_record["distance"], ranges):
                 continue
