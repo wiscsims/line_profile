@@ -24,7 +24,7 @@ A QGIS plugin for creating line profiles from vector and raster layers.
   - [Export Profile Data](#export-profile-data)
   - [Import and Export Profile Lines](#import-and-export-profile-lines)
   - [Scaling](#scaling)
-- [Development Tab](#development-tab)
+- [Development Page](#development-page)
   - [Sampling Areas and Sampling Points](#sampling-areas-and-sampling-points)
   - [Normalization of Profile Lines](#normalization-of-profile-lines)
 - [Manual QGIS Test](#manual-qgis-test)
@@ -186,6 +186,8 @@ The option is disabled by default. Turning it off immediately restores the compl
 ### Peak / Valley Detection
 
 Peak / Valley Detection offers two SciPy candidate finders: **Standard** (the default, `scipy.signal.find_peaks`) and **CWT** (`scipy.signal.find_peaks_cwt`, continuous wavelet transform). Both use the current processed raster profile and the same prominence, physical width, and distance filters. Valleys are detected from the inverted signal. Peaks are shown as red upward triangles and valleys as blue downward triangles on the plot. Corresponding markers can also be displayed on the QGIS map.
+
+The Plot page keeps detection settings visible and places **Manual Editing** and **Points** in compact expandable sections. Mode-specific rows appear only when relevant: adaptive prominence shows **Window [µm]**, **Selected ranges** shows the range editor, and CWT shows **CWT Settings...**. If the dock is short, the detection panel scrolls independently so the plot retains its space.
 
 #### Automatic detection
 
@@ -356,9 +358,9 @@ You can enter Pixel Size manually or click **Open Alignment File...** to read a 
 
 For a valid alignment file, the calculated pixel size must be positive and finite.
 
-## Development Tab
+## Development Page
 
-The **Development** tab contains tools for inspecting raster area sampling and for comparing two profile lines after normalization.
+Use the compact left navigation to switch between **Plot**, **Options**, and **Dev**. The **Dev** page contains tools for inspecting raster area sampling and for comparing two profile lines after normalization.
 
 ### Sampling Areas and Sampling Points
 
