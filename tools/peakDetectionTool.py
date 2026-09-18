@@ -1,6 +1,12 @@
 import math
 
 
+PROMINENCE_ABSOLUTE = "absolute"
+PROMINENCE_LOCAL_RANGE = "local_range_percent"
+PROMINENCE_LOCAL_SD = "local_sd"
+PROMINENCE_LOCAL_MAD = "local_mad"
+
+
 class PeakDetectionTool:
     """Numerical Peak/Valley detection with an optional SciPy dependency."""
 
@@ -71,6 +77,94 @@ class PeakDetectionTool:
         fraction = position - left_index
         return x_values[left_index] + fraction * (x_values[right_index] - x_values[left_index])
 
+    @staticmethod
+    def _median(values):
+        ordered = sorted(values)
+        middle = len(ordered) // 2
+        if len(ordered) % 2:
+            return ordered[middle]
+        return (ordered[middle - 1] + ordered[middle]) / 2.0
+
+    @classmethod
+    def _prominence_threshold(
+        cls,
+        candidate,
+        run_x,
+        run_y,
+        prominence_mode,
+        prominence,
+        prominence_window,
+    ):
+        value = float(prominence or 0.0)
+        if prominence_mode == PROMINENCE_ABSOLUTE:
+            return value
+        if prominence_mode not in (
+            PROMINENCE_LOCAL_RANGE,
+            PROMINENCE_LOCAL_SD,
+            PROMINENCE_LOCAL_MAD,
+        ):
+            raise ValueError("Unknown prominence mode: {}".format(prominence_mode))
+        if value <= 0:
+            return 0.0
+        if prominence_window is None or prominence_window <= 0:
+            raise ValueError("Adaptive prominence Window must be greater than 0 µm.")
+
+        center_x = run_x[candidate["_run_index"]]
+        half_window = float(prominence_window) / 2.0
+        local_values = [
+            y_value
+            for x_value, y_value in zip(run_x, run_y)
+            if abs(x_value - center_x) <= half_window
+        ]
+        if not local_values:
+            return 0.0
+        if prominence_mode == PROMINENCE_LOCAL_RANGE:
+            return (max(local_values) - min(local_values)) * value / 100.0
+        if prominence_mode == PROMINENCE_LOCAL_SD:
+            mean = sum(local_values) / len(local_values)
+            standard_deviation = math.sqrt(
+                sum((item - mean) ** 2 for item in local_values) / len(local_values)
+            )
+            return value * standard_deviation
+        median = cls._median(local_values)
+        mad = cls._median([abs(item - median) for item in local_values])
+        return value * 1.4826 * mad
+
+    def filter_candidates(
+        self,
+        candidates,
+        run_x,
+        run_y,
+        prominence_mode=PROMINENCE_ABSOLUTE,
+        prominence=None,
+        prominence_window=None,
+        min_width=None,
+        min_distance=None,
+    ):
+        """Apply finder-independent prominence, width, and distance filters."""
+        retained = []
+        for candidate in candidates:
+            threshold = self._prominence_threshold(
+                candidate,
+                run_x,
+                run_y,
+                prominence_mode,
+                prominence,
+                prominence_window,
+            )
+            measured = candidate["prominence"]
+            if threshold > 0 and (measured is None or measured < threshold):
+                continue
+            retained.append(candidate)
+
+        if min_width is not None and min_width > 0:
+            retained = [
+                candidate
+                for candidate in retained
+                if candidate["width"] is not None and candidate["width"] >= min_width
+            ]
+        return self._filter_by_profile_distance(retained, min_distance)
+
     def detect(
         self,
         x,
@@ -78,6 +172,8 @@ class PeakDetectionTool:
         detect_peaks=True,
         detect_valleys=True,
         prominence=None,
+        prominence_mode=PROMINENCE_ABSOLUTE,
+        prominence_window=None,
         min_distance=None,
         min_width=None,
     ):
@@ -87,12 +183,9 @@ class PeakDetectionTool:
         if len(x) != len(raw):
             raise ValueError("Profile X/Y lengths do not match")
 
-        options = {}
-        if prominence is not None and prominence > 0:
-            options["prominence"] = prominence
-        # Ask SciPy for fractional width properties without applying its
-        # sample-based width filter.  Physical filtering is done below.
-        options["width"] = (None, None)
+        # Ask the candidate finder to calculate properties without applying
+        # thresholds.  All filtering is performed in the common stage below.
+        options = {"prominence": (None, None), "width": (None, None)}
 
         results = {"peak": [], "valley": []}
         valid_values = [
@@ -101,6 +194,7 @@ class PeakDetectionTool:
         ]
         for start, end in self._valid_runs(valid_values):
             signal = list(raw[start:end])
+            run_x = raw_x[start:end]
             kinds = []
             if detect_peaks:
                 kinds.append(("peak", signal))
@@ -108,11 +202,7 @@ class PeakDetectionTool:
                 kinds.append(("valley", [-value for value in signal]))
             for kind, detection_signal in kinds:
                 indices, properties = find_peaks(detection_signal, **options)
-                prominences = (
-                    properties.get("prominences")
-                    if prominence is not None and prominence > 0
-                    else None
-                )
+                prominences = properties.get("prominences")
                 widths = properties.get("widths")
                 left_ips = properties.get("left_ips")
                 right_ips = properties.get("right_ips")
@@ -141,23 +231,29 @@ class PeakDetectionTool:
                             "width": width_um,
                             "_profile_distance": raw_x[sample_index],
                             "_prominence": (
-                                float(prominences[local_position]) if prominences is not None else None
+                                float(prominences[local_position])
+                                if prominences is not None and prominence is not None and prominence > 0
+                                else None
                             ),
                             "_detection_height": float(detection_signal[local_index]),
+                            "_run_index": int(local_index),
                         }
                     )
-                # Width is filtered first, then the existing physical-distance
-                # conflict resolution chooses among the remaining candidates.
-                if min_width is not None and min_width > 0:
-                    candidates = [
-                        candidate
-                        for candidate in candidates
-                        if candidate["width"] is not None and candidate["width"] >= min_width
-                    ]
-                for candidate in self._filter_by_profile_distance(candidates, min_distance):
+                filtered = self.filter_candidates(
+                    candidates,
+                    run_x,
+                    signal,
+                    prominence_mode=prominence_mode,
+                    prominence=prominence,
+                    prominence_window=prominence_window,
+                    min_width=min_width,
+                    min_distance=min_distance,
+                )
+                for candidate in filtered:
                     candidate.pop("_profile_distance")
                     candidate.pop("_prominence")
                     candidate.pop("_detection_height")
+                    candidate.pop("_run_index")
                     results[kind].append(candidate)
         return results
 

@@ -200,13 +200,24 @@ The **Data** list contains only checked raster series that are currently availab
 | --- | ---: | --- |
 | **Detect Peaks** | On | Detect local maxima in the profile. |
 | **Detect Valleys** | On | Detect local minima by applying the same detection logic to the inverted profile. Reported values remain the original, non-inverted values. |
-| **Prominence** | `0` | Minimum vertical prominence in intensity units. A larger value rejects small bumps whose height relative to the surrounding baseline is too small. `0` applies no prominence constraint. |
+| **Prominence mode** | `Absolute` | Chooses an absolute or locally adaptive prominence threshold. |
+| **Minimum / Range % / multiplier** | `0` | Threshold value for the selected prominence mode. `0` applies no prominence constraint. |
+| **Window** | `100 µm` | Total physical width of the adaptive neighborhood centered on each candidate. It is disabled in Absolute mode. |
 | **Min distance** | `0 µm` | Minimum separation between neighboring peaks or neighboring valleys along the profile, measured in µm. A larger value suppresses closely spaced detections of the same type. `0` applies no distance constraint. |
 | **Min width** | `0 µm` | Minimum feature width along the profile, measured in µm. Width is measured at approximately half of the feature prominence using the profile's actual x coordinates. A larger value rejects narrow features. `0` applies no width constraint. |
 
 #### Processing, units and filtering
 
-**Auto Detect** asks SciPy for peak or valley candidates and their properties from the same processed profile displayed in the plot, then applies the physical constraints below using the actual profile x coordinates. This keeps **Min distance** and **Min width** in µm even when sampling resolution or spacing changes. A detected feature's reported value is the processed-profile value at its sample position.
+**Auto Detect** asks SciPy for peak or valley candidates and their properties from the same processed profile displayed in the plot. A common post-candidate stage then applies prominence, Min width, and Min distance in that order. This filtering stage is independent of the candidate finder so future detection methods can reuse the same rules. A detected feature's reported value is the processed-profile value at its sample position.
+
+Prominence modes use these thresholds:
+
+- **Absolute:** the entered minimum prominence in intensity units. This is the original behavior and remains the default.
+- **Local range %:** `local (max - min) × percentage / 100`.
+- **Local SD:** `multiplier × local standard deviation`.
+- **Local MAD:** `multiplier × 1.4826 × median(abs(y - median(y)))`.
+
+The adaptive neighborhood is selected from raw profile x coordinates using half of **Window** on either side of the candidate. The stored Window is therefore the total width in µm, not a sample count. At a finite-run edge, Line Profile uses only the available part of the window without padding. NaN/NoData gaps and Detection Scope boundaries stop the neighborhood, so a separate speleothem chunk or excluded range cannot affect a candidate's threshold.
 
 - **Min distance** filters peaks and valleys independently after candidate detection. Features closer than the specified distance compete by prominence, then detection-signal height.
 - **Min width** uses SciPy's fractional `left_ips` and `right_ips` width positions. Line Profile interpolates both positions on the actual profile x coordinates, so the stored feature `width` and the threshold are both in µm.

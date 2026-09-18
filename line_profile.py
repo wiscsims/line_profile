@@ -70,7 +70,13 @@ from .tools.profileLineTool import ProfileLineTool
 from .tools.dataProcessingTool import DataProcessingTool
 from .tools.myTableViewModel import MyTableViewModel
 from .tools.profilePlotConverter import ProfilePlotConverter
-from .tools.peakDetectionTool import PeakDetectionTool
+from .tools.peakDetectionTool import (
+    PROMINENCE_ABSOLUTE,
+    PROMINENCE_LOCAL_MAD,
+    PROMINENCE_LOCAL_RANGE,
+    PROMINENCE_LOCAL_SD,
+    PeakDetectionTool,
+)
 from .tools.featurePointStore import FeaturePointStore
 from .tools.dependencyManager import SciPyDependencyManager
 from .tools.profileVisibility import distance_in_ranges, visible_profile_ranges
@@ -489,6 +495,7 @@ class LineProfile:
         self.dock.Btn_OpenAlignmentFile.clicked.connect(self.import_alignment_file)
 
         self.dock.Cmb_PeakDataSource.currentIndexChanged.connect(self.handle_peak_context_changed)
+        self.dock.Cmb_ProminenceMode.currentIndexChanged.connect(self.handle_prominence_mode_changed)
         self.dock.Cmb_DetectionScope.currentIndexChanged.connect(self.handle_detection_scope_changed)
         self.dock.Txt_DetectionRanges.editingFinished.connect(self.handle_detection_ranges_edited)
         self.dock.Btn_PickDetectionRange.toggled.connect(self.handle_detection_range_pick_toggled)
@@ -510,6 +517,7 @@ class LineProfile:
         self.timer_map_extent.timeout.connect(self.redraw_plot_for_map_extent)
         self.canvas.extentsChanged.connect(self.handle_map_extent_changed)
         self.refresh_peak_data_sources()
+        self.handle_prominence_mode_changed()
         self.handle_detection_scope_changed()
         self.update_feature_count()
 
@@ -525,6 +533,7 @@ class LineProfile:
             (self.dock.Btn_ExportProfileData.clicked, self.exportProfileData),
             (self.dock.CmbBox_ProfileLine.currentIndexChanged, self.changeCurrentProfileLine),
             (self.dock.Cmb_PeakDataSource.currentIndexChanged, self.handle_peak_context_changed),
+            (self.dock.Cmb_ProminenceMode.currentIndexChanged, self.handle_prominence_mode_changed),
             (self.dock.Cmb_DetectionScope.currentIndexChanged, self.handle_detection_scope_changed),
             (self.dock.Txt_DetectionRanges.editingFinished, self.handle_detection_ranges_edited),
             (self.dock.Btn_PickDetectionRange.toggled, self.handle_detection_range_pick_toggled),
@@ -1421,6 +1430,41 @@ class LineProfile:
         index = self.dock.Cmb_DetectionScope.currentIndex()
         return scopes[index] if 0 <= index < len(scopes) else SCOPE_FULL_PROFILE
 
+    def current_prominence_mode(self):
+        modes = (
+            PROMINENCE_ABSOLUTE,
+            PROMINENCE_LOCAL_RANGE,
+            PROMINENCE_LOCAL_SD,
+            PROMINENCE_LOCAL_MAD,
+        )
+        if not getattr(self, "dock", None):
+            return PROMINENCE_ABSOLUTE
+        index = self.dock.Cmb_ProminenceMode.currentIndex()
+        return modes[index] if 0 <= index < len(modes) else PROMINENCE_ABSOLUTE
+
+    def handle_prominence_mode_changed(self, *args):
+        if not getattr(self, "dock", None):
+            return
+        mode = self.current_prominence_mode()
+        adaptive = mode != PROMINENCE_ABSOLUTE
+        self.dock.Lbl_AdaptiveWindow.setEnabled(adaptive)
+        self.dock.Spn_AdaptiveWindow.setEnabled(adaptive)
+        labels = {
+            PROMINENCE_ABSOLUTE: "Minimum",
+            PROMINENCE_LOCAL_RANGE: "Range %",
+            PROMINENCE_LOCAL_SD: "SD multiplier",
+            PROMINENCE_LOCAL_MAD: "MAD multiplier",
+        }
+        tooltips = {
+            PROMINENCE_ABSOLUTE: "Minimum absolute prominence in intensity units; 0 means unconstrained",
+            PROMINENCE_LOCAL_RANGE: "Threshold = local (max - min) × percentage / 100; 0 means unconstrained",
+            PROMINENCE_LOCAL_SD: "Threshold = multiplier × local standard deviation; 0 means unconstrained",
+            PROMINENCE_LOCAL_MAD: "Threshold = multiplier × 1.4826 × local median absolute deviation; 0 means unconstrained",
+        }
+        self.dock.Lbl_Prominence.setText(labels[mode])
+        self.dock.Spn_Prominence.setToolTip(tooltips[mode])
+        self.dock.Spn_Prominence.setSuffix(" %" if mode == PROMINENCE_LOCAL_RANGE else "")
+
     def current_detection_ranges(self, context=None):
         """Return the active scope as raw physical profile-distance ranges."""
         scope = self.current_detection_scope()
@@ -1627,6 +1671,8 @@ class LineProfile:
             "detect_peaks": self.dock.Chk_DetectPeaks.isChecked(),
             "detect_valleys": self.dock.Chk_DetectValleys.isChecked(),
             "prominence": self.dock.Spn_Prominence.value() or None,
+            "prominence_mode": self.current_prominence_mode(),
+            "prominence_window": self.dock.Spn_AdaptiveWindow.value(),
             "min_distance": self.dock.Spn_MinPeakDistance.value(),
             "min_width": self.dock.Spn_MinPeakWidth.value(),
         }

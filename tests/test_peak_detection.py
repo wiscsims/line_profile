@@ -14,7 +14,7 @@ def fake_find_peaks(signal, prominence=None, distance=None, width=None):
         min(signal[index] - min(signal[: index + 1]), signal[index] - min(signal[index:]))
         for index in candidates
     ]
-    if prominence is not None:
+    if prominence is not None and not isinstance(prominence, tuple):
         filtered = [(index, value) for index, value in zip(candidates, prominences) if value >= prominence]
         candidates = [item[0] for item in filtered]
         prominences = [item[1] for item in filtered]
@@ -65,6 +65,14 @@ class PeakDetectionToolTest(unittest.TestCase):
         y = [0, 2, 0, 0, 6, 0]
         result = self.tool.detect(range(len(y)), y, detect_valleys=False, prominence=3)
         self.assertEqual([item["sample_index"] for item in result["peak"]], [4])
+
+    def test_absolute_prominence_default_is_backward_compatible(self):
+        y = [0, 2, 0, 0, 6, 0]
+        default = self.tool.detect(range(len(y)), y, detect_valleys=False, prominence=3)
+        explicit = self.tool.detect(
+            range(len(y)), y, detect_valleys=False, prominence=3, prominence_mode="absolute"
+        )
+        self.assertEqual(default, explicit)
 
     def test_min_distance_uses_physical_distance_at_one_um_sampling(self):
         y = [0, 5, 0, 8, 0]
