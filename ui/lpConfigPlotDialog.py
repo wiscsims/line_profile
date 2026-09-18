@@ -8,6 +8,7 @@ from ..tools.profileProcessing import (
     SMOOTHING_GAUSSIAN,
     SMOOTHING_MOVING_AVERAGE,
     SMOOTHING_NONE,
+    SMOOTHING_SAVGOL,
     smoothing_mode,
 )
 
@@ -35,6 +36,8 @@ class LPConfigPlotDialog(QDialog, FORM_CLASS):
         self.CMB_SmoothingMode.currentIndexChanged.connect(self.changeSmoothingMode)
         self.SPN_MovAveN.valueChanged.connect(self.changeMovAveN)
         self.SPN_GaussianSigma.valueChanged.connect(self.changeGaussianSigma)
+        self.SPN_SavgolWindow.valueChanged.connect(self.changeSavgolWindow)
+        self.SPN_SavgolPolyOrder.valueChanged.connect(self.changeSavgolPolyOrder)
         self.CKB_FullRes.stateChanged.connect(self.changeFullResState)
         self.SPN_MaxDist.valueChanged.connect(self.handle_changeMaxDist)
         self.CKB_SamplingState.stateChanged.connect(self.handle_changeAreaSamplingState)
@@ -77,7 +80,12 @@ class LPConfigPlotDialog(QDialog, FORM_CLASS):
         self.TXT_PlotLabel.setText(selectedText)
 
     def changeSmoothingMode(self):
-        modes = (SMOOTHING_NONE, SMOOTHING_MOVING_AVERAGE, SMOOTHING_GAUSSIAN)
+        modes = (
+            SMOOTHING_NONE,
+            SMOOTHING_MOVING_AVERAGE,
+            SMOOTHING_GAUSSIAN,
+            SMOOTHING_SAVGOL,
+        )
         mode = modes[self.CMB_SmoothingMode.currentIndex()]
         self.model.setConfigs(
             self.row,
@@ -98,6 +106,16 @@ class LPConfigPlotDialog(QDialog, FORM_CLASS):
             self.row, {'gaussianSigmaUm': self.SPN_GaussianSigma.value()}
         )
 
+    def changeSavgolWindow(self):
+        self.model.setConfigs(
+            self.row, {'savgolWindowUm': self.SPN_SavgolWindow.value()}
+        )
+
+    def changeSavgolPolyOrder(self):
+        self.model.setConfigs(
+            self.row, {'savgolPolyOrder': self.SPN_SavgolPolyOrder.value()}
+        )
+
     def updateSmoothingControls(self):
         raster = bool(self.model.getLayerType(self.row))
         mode = self.CMB_SmoothingMode.currentIndex()
@@ -105,6 +123,10 @@ class LPConfigPlotDialog(QDialog, FORM_CLASS):
         self.SPN_MovAveN.setEnabled(raster and mode == 1)
         self.LBL_GaussianSigma.setEnabled(raster and mode == 2)
         self.SPN_GaussianSigma.setEnabled(raster and mode == 2)
+        self.LBL_SavgolWindow.setEnabled(raster and mode == 3)
+        self.SPN_SavgolWindow.setEnabled(raster and mode == 3)
+        self.LBL_SavgolPolyOrder.setEnabled(raster and mode == 3)
+        self.SPN_SavgolPolyOrder.setEnabled(raster and mode == 3)
 
     def changeFullResState(self, state):
         self.model.setConfigs(self.row, {'fullRes': state})
@@ -166,10 +188,17 @@ class LPConfigPlotDialog(QDialog, FORM_CLASS):
         # Set the one shared smoothing method.  Legacy configurations with
         # movingAverage enabled but no smoothingMode remain Moving Average.
         mode = smoothing_mode(self.configs)
-        modes = (SMOOTHING_NONE, SMOOTHING_MOVING_AVERAGE, SMOOTHING_GAUSSIAN)
+        modes = (
+            SMOOTHING_NONE,
+            SMOOTHING_MOVING_AVERAGE,
+            SMOOTHING_GAUSSIAN,
+            SMOOTHING_SAVGOL,
+        )
         self.CMB_SmoothingMode.setCurrentIndex(modes.index(mode))
         self.SPN_MovAveN.setValue(self.configs['movingAverageN'])
         self.SPN_GaussianSigma.setValue(self.configs.get('gaussianSigmaUm', 0.0))
+        self.SPN_SavgolWindow.setValue(self.configs.get('savgolWindowUm', 5.0))
+        self.SPN_SavgolPolyOrder.setValue(self.configs.get('savgolPolyOrder', 2))
         # set full resolution
         self.CKB_FullRes.setCheckState(self.configs['fullRes'])
 

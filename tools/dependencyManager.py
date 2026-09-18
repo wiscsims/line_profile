@@ -35,7 +35,7 @@ class SciPyDependencyManager:
         response = QMessageBox.question(
             parent,
             "SciPy dependency",
-            "Gaussian profile smoothing and Peak/Valley auto detection require SciPy.\n\n"
+            "Gaussian and Savitzky–Golay profile smoothing and Peak/Valley auto detection require SciPy.\n\n"
             "SciPy is not available in the Python environment used by QGIS. "
             "Install SciPy for the current QGIS user profile now?",
             QMessageBox.Yes | QMessageBox.Cancel,
@@ -120,7 +120,7 @@ class SciPyDependencyManager:
         message = QMessageBox(parent)
         message.setIcon(QMessageBox.Critical)
         message.setWindowTitle("SciPy dependency")
-        message.setText("SciPy could not be installed. Gaussian smoothing and automatic Peak/Valley detection are unavailable.")
+        message.setText("SciPy could not be installed. Gaussian and Savitzky–Golay smoothing and automatic Peak/Valley detection are unavailable.")
         message.setDetailedText((stderr or stdout or "pip returned no diagnostic output").strip())
         message.exec_()
         self._clear_process_state()

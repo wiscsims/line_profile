@@ -132,8 +132,9 @@ Raster profiles have one **Smoothing** selector. It creates one processed profil
 - **None**: plot and analyse the sampled profile without smoothing.
 - **Moving Average**: apply an N-point centered moving average. The window size is measured in samples. Positions near the start or end that cannot contain a full window are left empty rather than shortening or shifting the profile.
 - **Gaussian**: apply Gaussian smoothing. **Gaussian σ** is entered in µm, then converted to samples separately for each continuous valid run using the run's median positive profile-distance spacing.
+- **Savitzky–Golay**: fit a local polynomial with SciPy's `savgol_filter`. **Savitzky–Golay Window** is a physical width in µm and **Polynomial order** is the fitted polynomial degree. For each continuous valid run, Line Profile divides Window by the run's median positive profile-distance spacing, chooses the nearest valid odd sample count, and uses `mode="interp"`. The window must be greater than the polynomial order and fit within the run. A run that is too short or has an invalid local configuration is left unchanged; the requested settings are not changed globally.
 
-Neither method crosses NoData gaps. A value of `0 µm` for Gaussian σ leaves the profile unchanged. Changing only smoothing settings reuses the cached raw samples when possible; it does not require a new raster sample pass. Gaussian smoothing requires SciPy. If SciPy is unavailable, Line Profile offers to install it for the active QGIS user profile and does not silently substitute the raw profile.
+No smoothing method crosses NoData gaps. Values of `0 µm` for Gaussian σ or Savitzky–Golay Window leave the profile unchanged. Changing only smoothing settings reuses the cached raw samples when possible; it does not require a new raster sample pass. Gaussian and Savitzky–Golay smoothing require SciPy. If SciPy is unavailable, Line Profile offers to install it for the active QGIS user profile and does not silently substitute the raw profile.
 
 #### Vector Layer Options
 

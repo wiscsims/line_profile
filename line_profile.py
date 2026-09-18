@@ -96,6 +96,7 @@ from .tools.featurePointIO import (
 )
 from .tools.profileProcessing import (
     SMOOTHING_GAUSSIAN,
+    SMOOTHING_SAVGOL,
     process_profile,
     processed_data,
     smoothing_mode,
@@ -701,16 +702,22 @@ class LineProfile:
         copied["plotOptions"] = dict(config["plotOptions"])
         return copied
 
-    def requires_gaussian_smoothing(self):
+    def requires_scipy_smoothing(self):
         """Whether an enabled raster series needs SciPy to be rendered."""
         for row in range(self.model.rowCount()):
             if not self.model.getCheckState(row) or not self.model.getLayerType(row):
                 continue
             config = self.model.getConfigs(row)
-            if (
-                smoothing_mode(config) == SMOOTHING_GAUSSIAN
+            mode = smoothing_mode(config)
+            requires_gaussian = (
+                mode == SMOOTHING_GAUSSIAN
                 and float(config.get("gaussianSigmaUm", 0.0)) > 0
-            ):
+            )
+            requires_savgol = (
+                mode == SMOOTHING_SAVGOL
+                and float(config.get("savgolWindowUm", 0.0)) > 0
+            )
+            if requires_gaussian or requires_savgol:
                 return True
         return False
 
@@ -734,7 +741,7 @@ class LineProfile:
             config = self.model.getConfigs(descriptor["row"])
             if descriptor.get("sampling_signature") != self.sampling_signature(config):
                 return False
-        if self.requires_gaussian_smoothing() and not self.scipyDependencyManager.has_scipy():
+        if self.requires_scipy_smoothing() and not self.scipyDependencyManager.has_scipy():
             self.scipyDependencyManager.ensure_scipy(
                 self.iface.mainWindow(), self.refresh_cached_processed_profiles
             )
@@ -783,7 +790,7 @@ class LineProfile:
             self.update_feature_count()
             return
 
-        if self.requires_gaussian_smoothing() and not self.scipyDependencyManager.has_scipy():
+        if self.requires_scipy_smoothing() and not self.scipyDependencyManager.has_scipy():
             self.scipyDependencyManager.ensure_scipy(
                 self.iface.mainWindow(), self.updatePlot
             )
