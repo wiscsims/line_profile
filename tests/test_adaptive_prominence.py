@@ -45,6 +45,7 @@ class AdaptiveProminenceTest(unittest.TestCase):
     def setUp(self):
         self.tool = PeakDetectionTool()
         self.tool._scipy_functions = lambda: fake_find_peaks
+        self.tool._measure_properties = lambda signal, indexes: fake_find_peaks(signal)[1]
 
     def filtered(self, y_values, candidates, mode, value, window):
         return self.tool.filter_candidates(

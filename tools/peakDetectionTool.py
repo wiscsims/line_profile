@@ -1,4 +1,15 @@
 import math
+from bisect import bisect_left
+
+
+ALGORITHM_STANDARD = "standard"
+ALGORITHM_CWT = "cwt"
+DEFAULT_CWT_SETTINGS = {
+    "cwt_min_scale": 1.0,
+    "cwt_max_scale": 10.0,
+    "cwt_num_scales": 20,
+    "cwt_min_snr": 1.0,
+}
 
 
 PROMINENCE_ABSOLUTE = "absolute"
@@ -9,6 +20,13 @@ PROMINENCE_LOCAL_MAD = "local_mad"
 
 class PeakDetectionTool:
     """Numerical Peak/Valley detection with an optional SciPy dependency."""
+
+    # Finders return only run-local sample indexes. New finders need no changes
+    # to property measurement, filtering, or record creation.
+    candidate_finders = {
+        ALGORITHM_STANDARD: "_standard_candidates",
+        ALGORITHM_CWT: "_cwt_candidates",
+    }
 
     @staticmethod
     def scipy_available():
@@ -22,6 +40,69 @@ class PeakDetectionTool:
     def _scipy_functions():
         from scipy.signal import find_peaks
         return find_peaks
+
+    @staticmethod
+    def _cwt_function():
+        from scipy.signal import find_peaks_cwt
+        return find_peaks_cwt
+
+    def _standard_candidates(self, signal, run_x, settings):
+        indexes, _ = self._scipy_functions()(signal)
+        return indexes
+
+    @staticmethod
+    def validate_cwt_settings(settings):
+        minimum = float(settings["cwt_min_scale"])
+        maximum = float(settings["cwt_max_scale"])
+        count = settings["cwt_num_scales"]
+        snr = float(settings["cwt_min_snr"])
+        if not (math.isfinite(minimum) and math.isfinite(maximum)
+                and 0 < minimum <= maximum):
+            raise ValueError("CWT scales must satisfy 0 < Minimum scale <= Maximum scale (µm).")
+        if not math.isfinite(float(count)) or int(count) != count or not 2 <= count <= 512:
+            raise ValueError("CWT Number of scales must be an integer between 2 and 512.")
+        if not math.isfinite(snr) or snr < 0:
+            raise ValueError("CWT Minimum SNR must be finite and nonnegative.")
+
+    def _cwt_candidates(self, signal, run_x, settings):
+        spacings = [right - left for left, right in zip(run_x, run_x[1:])
+                    if math.isfinite(right - left) and right > left]
+        if len(signal) < 3 or not spacings:
+            return []
+        spacing = self._median(spacings)
+        minimum = float(settings["cwt_min_scale"]) / spacing
+        maximum = float(settings["cwt_max_scale"]) / spacing
+        count = int(settings["cwt_num_scales"])
+        widths = [minimum + (maximum - minimum) * index / (count - 1)
+                  for index in range(count)]
+        if not all(math.isfinite(width) and width > 0 for width in widths):
+            raise ValueError("CWT scales cannot be represented at this profile spacing.")
+        indexes = self._cwt_function()(signal, widths, min_snr=settings["cwt_min_snr"])
+        # CWT ridge centers can be offset from the actual sampled extremum.
+        # Choose the nearest true local maximum (plateau midpoint included),
+        # bounded by the smallest scale, with a minimum tolerance of one sample.
+        extrema = list(self._standard_candidates(signal, run_x, settings))
+        radius = max(1, math.ceil(minimum))
+        refined = set()
+        for index in indexes:
+            position = bisect_left(extrema, int(index))
+            neighbors = extrema[max(0, position - 1):position + 1]
+            neighbors = [peak for peak in neighbors if abs(peak - index) <= radius]
+            if neighbors:
+                refined.add(int(min(neighbors, key=lambda peak: (
+                    abs(peak - index), -signal[peak], peak,
+                ))))
+        return sorted(refined)
+
+    @staticmethod
+    def _measure_properties(signal, indexes):
+        from scipy.signal import peak_prominences, peak_widths
+        prominence_data = peak_prominences(signal, indexes)
+        widths, _, left_ips, right_ips = peak_widths(
+            signal, indexes, rel_height=0.5, prominence_data=prominence_data,
+        )
+        return {"prominences": prominence_data[0], "widths": widths,
+                "left_ips": left_ips, "right_ips": right_ips}
 
     @staticmethod
     def _valid_runs(values):
@@ -176,16 +257,23 @@ class PeakDetectionTool:
         prominence_window=None,
         min_distance=None,
         min_width=None,
+        algorithm=ALGORITHM_STANDARD,
+        cwt_min_scale=1.0,
+        cwt_max_scale=10.0,
+        cwt_num_scales=20,
+        cwt_min_snr=1.0,
     ):
-        find_peaks = self._scipy_functions()
+        if algorithm not in self.candidate_finders:
+            raise ValueError("Unknown peak algorithm: {}".format(algorithm))
+        finder = getattr(self, self.candidate_finders[algorithm])
+        settings = {"cwt_min_scale": cwt_min_scale, "cwt_max_scale": cwt_max_scale,
+                    "cwt_num_scales": cwt_num_scales, "cwt_min_snr": cwt_min_snr}
+        if algorithm == ALGORITHM_CWT:
+            self.validate_cwt_settings(settings)
         raw_x = [float("nan") if value is None else float(value) for value in x]
         raw = [float("nan") if value is None else float(value) for value in y]
         if len(x) != len(raw):
             raise ValueError("Profile X/Y lengths do not match")
-
-        # Ask the candidate finder to calculate properties without applying
-        # thresholds.  All filtering is performed in the common stage below.
-        options = {"prominence": (None, None), "width": (None, None)}
 
         results = {"peak": [], "valley": []}
         valid_values = [
@@ -201,7 +289,10 @@ class PeakDetectionTool:
             if detect_valleys:
                 kinds.append(("valley", [-value for value in signal]))
             for kind, detection_signal in kinds:
-                indices, properties = find_peaks(detection_signal, **options)
+                indices = sorted(set(int(index) for index in finder(detection_signal, run_x, settings)))
+                if not indices:
+                    continue
+                properties = self._measure_properties(detection_signal, indices)
                 prominences = properties.get("prominences")
                 widths = properties.get("widths")
                 left_ips = properties.get("left_ips")
@@ -222,6 +313,7 @@ class PeakDetectionTool:
                     candidates.append(
                         {
                             "kind": kind,
+                            "algorithm": algorithm,
                             "sample_index": sample_index,
                             "distance": x[sample_index],
                             "value": y[sample_index],

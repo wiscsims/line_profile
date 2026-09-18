@@ -253,25 +253,34 @@
               </widget>
              </item>
              <item row="6" column="3"><widget class="QPushButton" name="Btn_PickDetectionRange"><property name="text"><string>Pick</string></property><property name="toolTip"><string>Click two positions on the profile plot to add a range</string></property><property name="checkable"><bool>true</bool></property></widget></item>
-             <item row="7" column="0" colspan="2"><widget class="QPushButton" name="Btn_AutoDetect"><property name="text"><string>Auto Detect</string></property></widget></item>
-             <item row="7" column="2" colspan="2"><widget class="QPushButton" name="Btn_ClearAuto"><property name="text"><string>Clear Auto</string></property></widget></item>
-             <item row="8" column="0"><widget class="QPushButton" name="Btn_ModeSelect"><property name="text"><string>Select</string></property><property name="checkable"><bool>true</bool></property><property name="checked"><bool>true</bool></property></widget></item>
-             <item row="8" column="1"><widget class="QPushButton" name="Btn_ModeAddPeak"><property name="text"><string>+ Peak</string></property><property name="checkable"><bool>true</bool></property></widget></item>
-             <item row="8" column="2"><widget class="QPushButton" name="Btn_ModeAddValley"><property name="text"><string>+ Valley</string></property><property name="checkable"><bool>true</bool></property></widget></item>
-             <item row="8" column="3"><widget class="QPushButton" name="Btn_ModeDelete"><property name="text"><string>Delete</string></property><property name="checkable"><bool>true</bool></property></widget></item>
-             <item row="9" column="0"><widget class="QLabel" name="Lbl_SnapRange"><property name="text"><string>Snap ±</string></property></widget></item>
-             <item row="9" column="1">
+             <item row="7" column="0"><widget class="QLabel" name="Lbl_PeakAlgorithm"><property name="text"><string>Algorithm</string></property></widget></item>
+             <item row="7" column="1">
+              <widget class="QComboBox" name="Cmb_PeakAlgorithm">
+               <property name="toolTip"><string>Choose the candidate finder. Both algorithms share prominence, physical width, and distance filters. Applied on the next Auto Detect; manual/imported points are preserved.</string></property>
+               <item><property name="text"><string>Standard</string></property></item>
+               <item><property name="text"><string>CWT</string></property></item>
+              </widget>
+             </item>
+             <item row="7" column="2" colspan="2"><widget class="QPushButton" name="Btn_CwtSettings"><property name="text"><string>CWT Settings...</string></property><property name="enabled"><bool>false</bool></property></widget></item>
+             <item row="8" column="0" colspan="2"><widget class="QPushButton" name="Btn_AutoDetect"><property name="text"><string>Auto Detect</string></property></widget></item>
+             <item row="8" column="2" colspan="2"><widget class="QPushButton" name="Btn_ClearAuto"><property name="text"><string>Clear Auto</string></property></widget></item>
+             <item row="9" column="0"><widget class="QPushButton" name="Btn_ModeSelect"><property name="text"><string>Select</string></property><property name="checkable"><bool>true</bool></property><property name="checked"><bool>true</bool></property></widget></item>
+             <item row="9" column="1"><widget class="QPushButton" name="Btn_ModeAddPeak"><property name="text"><string>+ Peak</string></property><property name="checkable"><bool>true</bool></property></widget></item>
+             <item row="9" column="2"><widget class="QPushButton" name="Btn_ModeAddValley"><property name="text"><string>+ Valley</string></property><property name="checkable"><bool>true</bool></property></widget></item>
+             <item row="9" column="3"><widget class="QPushButton" name="Btn_ModeDelete"><property name="text"><string>Delete</string></property><property name="checkable"><bool>true</bool></property></widget></item>
+             <item row="10" column="0"><widget class="QLabel" name="Lbl_SnapRange"><property name="text"><string>Snap ±</string></property></widget></item>
+             <item row="10" column="1">
               <widget class="QSpinBox" name="Spn_SnapRange">
                <property name="toolTip"><string>Snap/search tolerance in samples</string></property>
                <property name="maximum"><number>99999</number></property>
                <property name="value"><number>5</number></property>
               </widget>
              </item>
-             <item row="9" column="2" colspan="2"><widget class="QLabel" name="Lbl_FeatureCount"><property name="text"><string>0 points</string></property><property name="alignment"><set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set></property></widget></item>
-             <item row="10" column="0" colspan="4"><widget class="QCheckBox" name="Chk_ShowFeaturePoints"><property name="text"><string>Show points on map</string></property><property name="checked"><bool>true</bool></property></widget></item>
-             <item row="11" column="0" colspan="4"><widget class="QPushButton" name="Btn_ClearInScope"><property name="text"><string>Clear in Scope</string></property></widget></item>
-             <item row="12" column="0" colspan="2"><widget class="QPushButton" name="Btn_ClearAllFeatures"><property name="text"><string>Clear All</string></property></widget></item>
-             <item row="12" column="2" colspan="2"><widget class="QToolButton" name="Btn_PointsMenu"><property name="text"><string>Points...</string></property><property name="toolTip"><string>Import, export, or create a point layer</string></property><property name="popupMode"><enum>QToolButton::InstantPopup</enum></property></widget></item>
+             <item row="10" column="2" colspan="2"><widget class="QLabel" name="Lbl_FeatureCount"><property name="text"><string>0 points</string></property><property name="alignment"><set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set></property></widget></item>
+             <item row="11" column="0" colspan="4"><widget class="QCheckBox" name="Chk_ShowFeaturePoints"><property name="text"><string>Show points on map</string></property><property name="checked"><bool>true</bool></property></widget></item>
+             <item row="12" column="0" colspan="4"><widget class="QPushButton" name="Btn_ClearInScope"><property name="text"><string>Clear in Scope</string></property></widget></item>
+             <item row="13" column="0" colspan="2"><widget class="QPushButton" name="Btn_ClearAllFeatures"><property name="text"><string>Clear All</string></property></widget></item>
+             <item row="13" column="2" colspan="2"><widget class="QToolButton" name="Btn_PointsMenu"><property name="text"><string>Points...</string></property><property name="toolTip"><string>Import, export, or create a point layer</string></property><property name="popupMode"><enum>QToolButton::InstantPopup</enum></property></widget></item>
             </layout>
            </widget>
           </item>

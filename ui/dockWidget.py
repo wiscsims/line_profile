@@ -15,6 +15,8 @@ from qgis.PyQt.QtCore import (
 )
 
 from qgis.core import QgsProject
+from .cwtSettingsDialog import CwtSettingsDialog
+from ..tools.peakDetectionTool import ALGORITHM_STANDARD, ALGORITHM_CWT, DEFAULT_CWT_SETTINGS
 
 # This loads your .ui file so that PyQt can populate your plugin with the elements from Qt Designer
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
@@ -47,6 +49,12 @@ class DockWidget(QDockWidget, FORM_CLASS):
         self.widget_3.show()
 
     def initPeakDetectionControls(self):
+        self.cwt_settings = dict(DEFAULT_CWT_SETTINGS)
+        self.Cmb_PeakAlgorithm.setItemData(0, ALGORITHM_STANDARD)
+        self.Cmb_PeakAlgorithm.setItemData(1, ALGORITHM_CWT)
+        self.Cmb_PeakAlgorithm.currentIndexChanged.connect(self.updateAlgorithmControls)
+        self.Btn_CwtSettings.clicked.connect(self.showCwtSettings)
+        self.updateAlgorithmControls()
         self.peakModeGroup = QButtonGroup(self)
         self.peakModeGroup.setExclusive(True)
         for button in (
@@ -56,6 +64,15 @@ class DockWidget(QDockWidget, FORM_CLASS):
             self.Btn_ModeDelete,
         ):
             self.peakModeGroup.addButton(button)
+
+    def updateAlgorithmControls(self):
+        self.Btn_CwtSettings.setEnabled(self.Cmb_PeakAlgorithm.currentData() == ALGORITHM_CWT)
+
+    def showCwtSettings(self):
+        dialog = CwtSettingsDialog(self.cwt_settings, self)
+        if dialog.exec_():
+            self.cwt_settings = dialog.settings()
+        dialog.deleteLater()
 
     def connectTable(self):
         self.Btn_Add.clicked.connect(self.selectElement)

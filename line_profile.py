@@ -1675,6 +1675,8 @@ class LineProfile:
             self.scipyDependencyManager.ensure_scipy(self.iface.mainWindow(), self.handle_auto_detect)
             return
         options = {
+            "algorithm": self.dock.Cmb_PeakAlgorithm.currentData(),
+            **self.dock.cwt_settings,
             "detect_peaks": self.dock.Chk_DetectPeaks.isChecked(),
             "detect_valleys": self.dock.Chk_DetectValleys.isChecked(),
             "prominence": self.dock.Spn_Prominence.value() or None,

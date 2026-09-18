@@ -185,20 +185,21 @@ The option is disabled by default. Turning it off immediately restores the compl
 
 ### Peak / Valley Detection
 
-Peak / Valley Detection uses SciPy's `scipy.signal.find_peaks` to find local maxima and minima in the current processed raster profile. Valleys are detected from the inverted signal. Peaks are shown as red upward triangles and valleys as blue downward triangles on the plot. Corresponding markers can also be displayed on the QGIS map.
+Peak / Valley Detection offers two SciPy candidate finders: **Standard** (the default, `scipy.signal.find_peaks`) and **CWT** (`scipy.signal.find_peaks_cwt`, continuous wavelet transform). Both use the current processed raster profile and the same prominence, physical width, and distance filters. Valleys are detected from the inverted signal. Peaks are shown as red upward triangles and valleys as blue downward triangles on the plot. Corresponding markers can also be displayed on the QGIS map.
 
 #### Automatic detection
 
 1. Add a raster band with **Add Data** and draw a profile line.
 2. In **Peak / Valley Detection**, choose the plotted raster series from **Data**.
 3. Enable **Detect Peaks**, **Detect Valleys**, or both.
-4. Adjust the detection parameters described below.
-5. Click **Auto Detect**. Change the parameters and click it again to replace the previous automatic results for the current profile and data series. Manually added points are preserved.
+4. Choose **Algorithm** and adjust the detection parameters described below. For CWT, open **CWT Settings...** to set the physical scale range and minimum SNR.
+5. Click **Auto Detect**. Change the parameters and click it again to replace the previous automatic results for the current profile and data series. Manual and imported points are preserved. Changing Algorithm or CWT Settings takes effect on the next Auto Detect.
 
 The **Data** list contains only checked raster series that are currently available to the plot. Detection is performed independently for each continuous run of valid samples, so a NoData gap is never treated as part of a peak or valley.
 
 | Parameter | Default | Meaning |
 | --- | ---: | --- |
+| **Algorithm** | `Standard` | Candidate finder: ordinary local extrema (Standard) or wavelet ridges across multiple physical scales (CWT). |
 | **Detect Peaks** | On | Detect local maxima in the profile. |
 | **Detect Valleys** | On | Detect local minima by applying the same detection logic to the inverted profile. Reported values remain the original, non-inverted values. |
 | **Prominence mode** | `Absolute` | Chooses an absolute or locally adaptive prominence threshold. |
@@ -209,7 +210,24 @@ The **Data** list contains only checked raster series that are currently availab
 
 #### Processing, units and filtering
 
-**Auto Detect** asks SciPy for peak or valley candidates and their properties from the same processed profile displayed in the plot. A common post-candidate stage then applies prominence, Min width, and Min distance in that order. This filtering stage is independent of the candidate finder so future detection methods can reuse the same rules. A detected feature's reported value is the processed-profile value at its sample position.
+**Auto Detect** passes the same processed profile displayed in the plot to the selected candidate finder. The finder returns sample indexes; a common stage measures prominence with `peak_prominences` and half-prominence width with `peak_widths`, then applies Absolute/Adaptive prominence, Min width [µm], and Min distance [µm] in that order. Record creation is also shared. A detected feature's reported value is the processed-profile value at its sample position. Automatic records carry informational `algorithm` metadata (`standard` or `cwt`); manual/imported records are independent of this setting.
+
+#### CWT Settings
+
+| Setting | Default | Meaning |
+| --- | ---: | --- |
+| **Minimum scale [µm]** | `1` | Smallest Ricker wavelet scale along the raw physical profile. Must be greater than zero. |
+| **Maximum scale [µm]** | `10` | Largest wavelet scale; must be at least Minimum scale. |
+| **Number of scales** | `20` | Number of linearly spaced scales, including both endpoints (2–512). More scales require more computation. |
+| **Minimum SNR** | `1` | Dimensionless SciPy CWT ridge signal-to-noise threshold. Higher values reject more ridges; `0` disables this threshold. |
+
+For each finite Detection Scope interval, scales in µm are divided by the **median positive x spacing** to obtain SciPy's sample-space widths. CWT runs independently across NaN/NoData gaps and disjoint scope ranges. It uses the shared processed profile, so smoothing happens before scope selection; normalized plot coordinates and map-display masking do not change CWT scales. Strongly irregular sampling is approximated by this median spacing, without resampling the data.
+
+CWT ridge centers are refined to the nearest actual local extremum within `max(1, ceil(minimum scale / spacing))` samples. Equal-distance ties prefer the higher detection-signal value, then the lower sample index; a flat peak uses the midpoint rounded down. Centers without a nearby interior extremum are discarded, and duplicate refined indexes are removed before measuring properties. Valleys use the identical rule on the inverted signal.
+
+Choose a scale range covering the feature sizes of interest, then compare Standard and CWT using the same smoothing and common filters. CWT scale is a wavelet parameter, **not** the measured half-prominence width or the Min width threshold. CWT Settings are retained while the dock is open; they are not saved to the QGIS project.
+
+#### Common prominence and distance filters
 
 Prominence modes use these thresholds:
 
@@ -224,7 +242,7 @@ The adaptive neighborhood is selected from raw profile x coordinates using half 
 - **Min width** uses SciPy's fractional `left_ips` and `right_ips` width positions. Line Profile interpolates both positions on the actual profile x coordinates, so the stored feature `width` and the threshold are both in µm.
 - **Snap ±** remains sample-based.
 
-SciPy is required for **Auto Detect** and for Gaussian smoothing. If it is unavailable, Line Profile asks for permission before installing it into the active QGIS user's `python/dependencies` directory. Manual editing remains available without SciPy when Gaussian smoothing is not selected.
+SciPy is required for both **Auto Detect** algorithms and for Gaussian or Savitzky–Golay smoothing. If it is unavailable, Line Profile asks for permission before installing it into the active QGIS user's `python/dependencies` directory. Manual editing remains available without SciPy when neither Gaussian nor Savitzky–Golay smoothing is selected.
 
 For a noisy profile, first increase **Prominence** slightly. If noise still produces clusters of points, increase **Min distance** or choose a small smoothing setting in the raster data configuration. If a real narrow feature is missing, reduce **Min width** or disable it with `0`.
 

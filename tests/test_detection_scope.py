@@ -38,6 +38,9 @@ class DetectionScopeTest(unittest.TestCase):
     def setUp(self):
         self.detector = PeakDetectionTool()
         self.detector._scipy_functions = lambda: fake_find_peaks
+        self.detector._measure_properties = lambda signal, indexes: fake_find_peaks(
+            signal, prominence=(None, None), width=(None, None)
+        )[1]
 
     def test_single_range_and_global_sample_index(self):
         result = detect_in_ranges(

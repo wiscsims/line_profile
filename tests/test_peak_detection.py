@@ -44,6 +44,9 @@ class PeakDetectionToolTest(unittest.TestCase):
     def setUp(self):
         self.tool = PeakDetectionTool()
         self.tool._scipy_functions = lambda: fake_find_peaks
+        self.tool._measure_properties = lambda signal, indexes: fake_find_peaks(
+            signal, prominence=(None, None), width=(None, None)
+        )[1]
 
     def use_width_properties(self, index, left_ips, right_ips):
         def find_peaks(signal, **options):
@@ -54,6 +57,7 @@ class PeakDetectionToolTest(unittest.TestCase):
             }
 
         self.tool._scipy_functions = lambda: find_peaks
+        self.tool._measure_properties = lambda signal, indexes: find_peaks(signal)[1]
 
     def test_detects_peaks_and_valleys(self):
         y = [0, 1, 5, 1, 0, 2, 8, 2, 0]
@@ -207,7 +211,7 @@ class PeakDetectionToolTest(unittest.TestCase):
 
         self.tool._scipy_functions = lambda: recording_find_peaks
         self.tool.detect([0, 1, 2], [0, 5, 0], detect_valleys=False, min_width=2.5)
-        self.assertEqual(calls[0]["width"], (None, None))
+        self.assertNotIn("width", calls[0])
 
     def test_manual_snap_and_edge_windows(self):
         y = [4, 1, 7, 2, 5]
