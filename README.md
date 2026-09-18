@@ -130,7 +130,7 @@ Area Sampling is performed before profile smoothing.
 Raster profiles have one **Smoothing** selector. It creates one processed profile that is used consistently by the plot, Profile Data export, Peak / Valley Detection, and manual Peak / Valley snapping. The original sampled profile remains unchanged.
 
 - **None**: plot and analyse the sampled profile without smoothing.
-- **Moving Average**: apply an N-point centered moving average. The window size is measured in samples. Positions near the start or end that cannot contain a full window are left empty rather than shortening or shifting the profile.
+- **Moving Average**: apply an odd N-point centered moving average. **Window [samples]** defaults to **11** (five samples on each side plus the current sample). Typed or legacy even values are rounded up to the next odd value, for example `10 → 11` and `20 → 21`; the effective value is used in both the UI and processing. Positions near the start or end that cannot contain a full window are left empty rather than shortening or shifting the profile.
 - **Gaussian**: apply Gaussian smoothing. **Gaussian σ** is entered in µm, then converted to samples separately for each continuous valid run using the run's median positive profile-distance spacing.
 - **Savitzky–Golay**: fit a local polynomial with SciPy's `savgol_filter`. **Savitzky–Golay Window** is a physical width in µm and **Polynomial order** is the fitted polynomial degree. For each continuous valid run, Line Profile divides Window by the run's median positive profile-distance spacing, chooses the nearest valid odd sample count, and uses `mode="interp"`. The window must be greater than the polynomial order and fit within the run. A run that is too short or has an invalid local configuration is left unchanged; the requested settings are not changed globally.
 
@@ -193,7 +193,9 @@ Peak / Valley Detection offers two SciPy candidate finders: **Standard** (the de
 2. In **Peak / Valley Detection**, choose the plotted raster series from **Data**.
 3. Enable **Detect Peaks**, **Detect Valleys**, or both.
 4. Choose **Algorithm** and adjust the detection parameters described below. For CWT, open **CWT Settings...** to set the physical scale range and minimum SNR.
-5. Click **Auto Detect**. Change the parameters and click it again to replace the previous automatic results for the current profile and data series. Manual and imported points are preserved. Changing Algorithm or CWT Settings takes effect on the next Auto Detect.
+5. Click **Auto Detect**. With **Full profile**, this replaces all previous automatic results for the current profile and data series. With **Selected ranges** or **Current map extent**, it replaces automatic results only inside the active ranges and preserves those outside. Manual and imported points are always preserved. Changing Algorithm or CWT Settings takes effect on the next Auto Detect.
+
+Partial Detection Scopes are incremental: detect the left region, pan right and detect again to keep both regions. An empty selected scope or a map extent not intersecting the profile displays an informational message and changes nothing. Outside-scope results may retain older detection parameters intentionally; use **Full profile → Auto Detect** to apply one parameter set everywhere. Detection Scope remains independent of **Sync plot to map extent**.
 
 The **Data** list contains only checked raster series that are currently available to the plot. Detection is performed independently for each continuous run of valid samples, so a NoData gap is never treated as part of a peak or valley.
 
@@ -236,7 +238,7 @@ Prominence modes use these thresholds:
 - **Local SD:** `multiplier × local standard deviation`.
 - **Local MAD:** `multiplier × 1.4826 × median(abs(y - median(y)))`.
 
-The adaptive neighborhood is selected from raw profile x coordinates using half of **Window** on either side of the candidate. The stored Window is therefore the total width in µm, not a sample count. At a finite-run edge, Line Profile uses only the available part of the window without padding. NaN/NoData gaps and Detection Scope boundaries stop the neighborhood, so a separate speleothem chunk or excluded range cannot affect a candidate's threshold.
+The adaptive neighborhood is selected from raw profile x coordinates using half of **Window** on either side of the candidate. The stored Window is therefore the total width in µm, not a sample count. At a finite-run edge, Line Profile uses only the available part of the window without padding. If fewer than three samples fall within the window, all three adaptive modes use the entire current finite detection run instead; a run with fewer than three samples gives a threshold of zero. NaN/NoData gaps and Detection Scope boundaries limit both the neighborhood and this fallback, so a separate speleothem chunk or excluded range cannot affect a candidate's threshold. Absolute mode is unchanged.
 
 - **Min distance** filters peaks and valleys independently after candidate detection. Features closer than the specified distance compete by prominence, then detection-signal height.
 - **Min width** uses SciPy's fractional `left_ips` and `right_ips` width positions. Line Profile interpolates both positions on the actual profile x coordinates, so the stored feature `width` and the threshold are both in µm.
@@ -287,9 +289,9 @@ distance_um,type
 1456.8,valley
 ```
 
-If the `type` column is absent, Line Profile asks whether the rows are Peaks or Valleys. Import always targets the currently selected Profile Line and Peak Detection data series; saved layer IDs, profile numbers, values, and map coordinates in the file are not reused. Each `distance_um` is snapped to the nearest current raw profile sample. Distances outside the current profile are rejected rather than clamped. The plugin recalculates the snapped distance, processed value, and map location, then stores new records as `imported`.
+If the `type` column is absent, Line Profile asks whether the rows are Peaks or Valleys. Import always targets the currently selected Profile Line and Peak Detection data series; saved layer IDs, profile numbers, values, and map coordinates in the file are not reused. Each `distance_um` is snapped to the nearest sample with finite raw distance, finite processed value, and a valid map position. Distances outside the full physical profile are rejected rather than clamped; distances inside it near smoothing edges or NoData gaps snap to the nearest eligible sample. If none exists, the row is skipped. The plugin recalculates the snapped distance, processed value, and map location, then stores new records as `imported`.
 
-Only one point can occupy a sample: a duplicate of the same type is skipped, while an opposite type replaces the existing classification. Malformed or out-of-range rows do not prevent valid rows from importing; their original row numbers are reported after import. Imported points remain editable using + Peak, + Valley, and Delete, and are included in the confirmation for **Clear in Scope** and **Clear All**.
+Only one point can occupy a sample: a matching automatic point is promoted to `imported` and survives **Clear Auto**. Matching imported or manual points retain their existing record and source; an opposite type replaces the existing classification. Malformed, out-of-range, or unsnappable rows do not prevent valid rows from importing; their original row numbers are reported after import. Imported points remain editable using + Peak, + Valley, and Delete, and are included in the confirmation for **Clear in Scope** and **Clear All**.
 
 ### Save Plot
 

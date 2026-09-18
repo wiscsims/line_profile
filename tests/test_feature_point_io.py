@@ -9,6 +9,7 @@ from tools.featurePointIO import (
     read_delimited_rows,
 )
 from tools.featurePointStore import FeaturePointStore
+from tools.profileProcessing import process_profile
 
 
 def point_record(kind="peak", source="imported", sample_index=1):
@@ -118,6 +119,45 @@ class FeaturePointIOTest(unittest.TestCase):
         store.add_imported(point_record("valley"))
         records = store.records_for(0, "current-raster")
         self.assertEqual([(record["kind"], record["source"]) for record in records], [("valley", "imported")])
+
+    def test_moving_average_edges_snap_inside_full_physical_extent(self):
+        x_values, y_values = process_profile((list(range(15)), list(range(15))), {"movingAverage": True})
+        entries = [{"line_number": i + 2, "distance_um": x, "kind": "peak"}
+                   for i, x in enumerate((-0.1, 0, 14, 14.1))]
+        records, skipped = map_imported_points(
+            entries, x_values, y_values, [(x, 0) for x in x_values], 0, "r", "data"
+        )
+        self.assertEqual(skipped, [2, 5])
+        self.assertEqual([(p["sample_index"], p["distance"], p["value"]) for p in records],
+                         [(5, 5, 5), (9, 9, 9)])
+
+    def test_internal_gap_snaps_to_nearest_finite_processed_sample(self):
+        for missing in (float("nan"), float("inf"), -float("inf"), None):
+            with self.subTest(missing=missing):
+                records, skipped = map_imported_points(
+                    [{"line_number": 2, "distance_um": 6, "kind": "valley"}],
+                    [0, 5, 10], [1, missing, 7], [(0, 0), (5, 0), (10, 0)], 0, "r", "data"
+                )
+                self.assertEqual(skipped, [])
+                self.assertEqual((records[0]["sample_index"], records[0]["value"]), (2, 7))
+
+    def test_invalid_x_and_missing_or_invalid_centers_are_not_snap_candidates(self):
+        records, skipped = map_imported_points(
+            [{"line_number": 2, "distance_um": 8, "kind": "peak"}],
+            [0, float("nan"), float("inf"), 5, 6, 7, 8, 9], [1] * 8,
+            [(0, 0), (1, 1), (2, 2), None, (), (6, float("nan")), (float("inf"), 0)],
+            0, "r", "data",
+        )
+        self.assertEqual(skipped, [])
+        self.assertEqual(records[0]["sample_index"], 0)
+
+    def test_no_usable_processed_samples_reports_every_skipped_row(self):
+        entries = [{"line_number": i + 2, "distance_um": i, "kind": "peak"} for i in range(3)]
+        for values in ([float("nan")] * 3, [], [None, float("inf"), -float("inf")]):
+            with self.subTest(values=values):
+                self.assertEqual(map_imported_points(
+                    entries, [0, 1, 2], values, [(0, 0)] * 3, 0, "r", "data"
+                ), ([], [2, 3, 4]))
 
 
 if __name__ == "__main__":

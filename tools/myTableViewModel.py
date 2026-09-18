@@ -7,6 +7,8 @@ from qgis.PyQt.QtGui import (
     QIcon
 )
 
+from .profileProcessing import DEFAULT_MOVING_AVERAGE_WINDOW, moving_average_window
+
 
 class MyTableViewModel(QStandardItemModel):
     """docstring for MyTableViewModel"""
@@ -28,7 +30,7 @@ class MyTableViewModel(QStandardItemModel):
         [self.insertColumn(i) for i in range(self.n)]
         self.setHorizontalHeaderLabels(['', '', 'Layer', 'Data', ''])
 
-        self.movAveDefault = 10
+        self.movAveDefault = DEFAULT_MOVING_AVERAGE_WINDOW
         self.maxDistDefault = 100.00
         self.lineWidthDefault = 1
         self.areaSampleWidthDafault = 5
@@ -153,7 +155,11 @@ class MyTableViewModel(QStandardItemModel):
         return 'Raster' if self.getLayerType(row) else 'Vector'
 
     def getConfigs(self, row):
-        return self.item(row, self.c['config']).data()
+        config = self.item(row, self.c['config']).data()
+        config['movingAverageN'] = moving_average_window(
+            config.get('movingAverageN', DEFAULT_MOVING_AVERAGE_WINDOW)
+        )
+        return config
 
     def getLayerById(self, id):
         matched_layers = self.findItems(id, Qt.MatchExactly, self.c['layerId'])
@@ -187,6 +193,7 @@ class MyTableViewModel(QStandardItemModel):
                 config[param] = value
                 myUpdateFlag = True
         if myUpdateFlag:
+            config['movingAverageN'] = moving_average_window(config['movingAverageN'])
             self.item(row, self.c['config']).setData(config)
 
     def setPlotLabel(self, row, label):

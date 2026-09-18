@@ -1779,10 +1779,6 @@ class LineProfile:
             else self.current_detection_ranges(context)
         )
         if not ranges:
-            self.featurePointStore.replace_auto_in_ranges(
-                context["profile_index"], context["raster_layer_id"], [], []
-            )
-            self.updatePlot()
             QMessageBox.information(
                 self.iface.mainWindow(),
                 "Detection Scope",
