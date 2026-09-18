@@ -48,6 +48,20 @@ class FeaturePointStoreTest(unittest.TestCase):
         self.store.clear_auto(0, "raster")
         self.assertEqual([item["source"] for item in self.store.records_for(0, "raster")], ["manual"])
 
+    def test_imported_points_survive_auto_replacement_and_clear_auto(self):
+        self.store.add_imported(record("peak", "ignored", 2))
+        self.store.replace_auto(0, "raster", [record("valley", "auto", 4)])
+        self.store.clear_auto(0, "raster")
+        records = self.store.records_for(0, "raster")
+        self.assertEqual([(item["sample_index"], item["source"]) for item in records], [(2, "imported")])
+
+    def test_imported_duplicate_is_skipped_and_opposite_type_reclassifies(self):
+        self.store.add_imported(record("peak", "ignored", 2))
+        self.store.add_imported(record("peak", "ignored", 2))
+        self.store.add_imported(record("valley", "ignored", 2))
+        records = self.store.records_for(0, "raster")
+        self.assertEqual([(item["kind"], item["source"]) for item in records], [("valley", "imported")])
+
     def test_delete_nearest_respects_tolerance(self):
         self.store.add_manual(record(sample_index=5))
         self.assertIsNone(self.store.delete_nearest(0, "raster", 1, 2))

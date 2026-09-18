@@ -250,7 +250,7 @@
              <item row="9" column="0" colspan="4"><widget class="QCheckBox" name="Chk_ShowFeaturePoints"><property name="text"><string>Show points on map</string></property><property name="checked"><bool>true</bool></property></widget></item>
              <item row="10" column="0" colspan="4"><widget class="QPushButton" name="Btn_ClearInScope"><property name="text"><string>Clear in Scope</string></property></widget></item>
              <item row="11" column="0" colspan="2"><widget class="QPushButton" name="Btn_ClearAllFeatures"><property name="text"><string>Clear All</string></property></widget></item>
-             <item row="11" column="2" colspan="2"><widget class="QPushButton" name="Btn_CreatePointLayer"><property name="text"><string>Create Point Layer</string></property></widget></item>
+             <item row="11" column="2" colspan="2"><widget class="QToolButton" name="Btn_PointsMenu"><property name="text"><string>Points...</string></property><property name="toolTip"><string>Import, export, or create a point layer</string></property><property name="popupMode"><enum>QToolButton::InstantPopup</enum></property></widget></item>
             </layout>
            </widget>
           </item>

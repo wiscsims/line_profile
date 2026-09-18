@@ -229,15 +229,37 @@ Choose a mode and left click the profile plot:
 
 **Snap ±** defaults to `5` samples. This means an addition searches from five samples before the clicked sample through five samples after it, clipped at the ends of the profile. You do not need to click the exact peak or valley. Adding the same classification at the same sample does not create a duplicate. Adding the opposite classification at that sample reclassifies it as the newly selected manual type.
 
-Manual points survive **Auto Detect** and **Clear Auto**. They are cleared when **Clear All** is confirmed or when the associated profile geometry or raster sampling configuration changes so that the saved sample positions are no longer valid.
+Manual and imported points survive **Auto Detect** and **Clear Auto**. They are cleared when **Clear All** is confirmed or when the associated profile geometry or raster sampling configuration changes so that the saved sample positions are no longer valid.
 
 #### Display, clearing, and output
 
 - **Show points on map** shows or hides markers for the current profile and selected raster series without deleting the records.
-- **Clear Auto** removes only automatic records for the current profile and selected raster series. Manual points remain.
-- **Clear All** removes all stored Peak and Valley records. Confirmation is required when manual records exist.
+- **Clear Auto** removes only automatic records for the current profile and selected raster series. Manual and imported points remain.
+- **Clear All** removes all stored Peak and Valley records. Confirmation is required when manual or imported records exist.
 - The point count applies to the current profile and selected raster series.
-- **Create Point Layer** creates a temporary QGIS memory layer named `Line Profile Peaks Valleys`. It includes all stored records and the fields `feature_id`, `type`, `source`, `profile`, `data`, `raster_id`, `sample_idx`, `distance`, `value`, `prominence`, and `width`. Save or export this memory layer if it must persist after the QGIS project is closed.
+- **Create Point Layer** in the **Points...** menu creates a temporary QGIS memory layer named `Line Profile Peaks Valleys`. It includes all stored records and the fields `feature_id`, `type`, `source`, `profile`, `data`, `raster_id`, `sample_idx`, `distance`, `value`, `prominence`, and `width`. Save or export this memory layer if it must persist after the QGIS project is closed.
+
+#### Importing and exporting points
+
+Use the **Points...** menu in the Peak / Valley Detection panel to import points, export the current profile and data series, or export all stored points. CSV (`.csv`), TSV (`.tsv`), and text (`.txt`) files are supported. Plugin exports are portable and can be imported again.
+
+Exported files include these columns:
+
+```text
+type, source, profile, data, distance_um, value, sample_index, prominence, width_um, map_x, map_y
+```
+
+A minimal external file needs only `distance_um,type`, for example:
+
+```csv
+distance_um,type
+1234.5,peak
+1456.8,valley
+```
+
+If the `type` column is absent, Line Profile asks whether the rows are Peaks or Valleys. Import always targets the currently selected Profile Line and Peak Detection data series; saved layer IDs, profile numbers, values, and map coordinates in the file are not reused. Each `distance_um` is snapped to the nearest current raw profile sample. Distances outside the current profile are rejected rather than clamped. The plugin recalculates the snapped distance, processed value, and map location, then stores new records as `imported`.
+
+Only one point can occupy a sample: a duplicate of the same type is skipped, while an opposite type replaces the existing classification. Malformed or out-of-range rows do not prevent valid rows from importing; their original row numbers are reported after import. Imported points remain editable using + Peak, + Valley, and Delete, and are included in the confirmation for **Clear in Scope** and **Clear All**.
 
 ### Save Plot
 

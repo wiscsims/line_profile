@@ -27,6 +27,7 @@ import os.path
 import re
 import json
 import math
+import csv
 from itertools import combinations
 from functools import reduce
 
@@ -42,6 +43,8 @@ from qgis.PyQt.QtCore import (
 from qgis.PyQt.QtWidgets import (
     QAction,
     QFileDialog,
+    QInputDialog,
+    QMenu,
     QMessageBox,
 )
 
@@ -79,6 +82,12 @@ from .tools.detectionScope import (
     full_profile_ranges,
 )
 from .tools.rangeUtils import format_ranges, merge_ranges, parse_ranges
+from .tools.featurePointIO import (
+    export_feature_points as export_feature_point_file,
+    map_imported_points,
+    parse_import_rows,
+    read_delimited_rows,
+)
 from .tools.profileProcessing import (
     SMOOTHING_GAUSSIAN,
     process_profile,
@@ -167,6 +176,7 @@ class LineProfile:
         self.featurePointStore = FeaturePointStore()
         self.scipyDependencyManager = SciPyDependencyManager()
         self.feature_data_signatures = {}
+        self.point_menu_actions = []
 
     def log_message(self, message, level=Qgis.Warning):
         QgsMessageLog.logMessage(str(message), "Line Profile", level)
@@ -450,6 +460,7 @@ class LineProfile:
         self.connectTools()
 
         self.disconnectDock()
+        self.setup_points_menu()
 
         # self.dock.closed.connect(self.closePlugin)
         self.dock.showConfig.connect(self.showConfigDialog)
@@ -486,7 +497,6 @@ class LineProfile:
         self.dock.Btn_ClearInScope.clicked.connect(self.clear_features_in_scope)
         self.dock.Chk_ShowFeaturePoints.stateChanged.connect(self.refresh_feature_map_markers)
         self.dock.Btn_ClearAllFeatures.clicked.connect(self.clear_all_features)
-        self.dock.Btn_CreatePointLayer.clicked.connect(self.create_feature_point_layer)
         QgsProject.instance().layersRemoved.connect(self.handle_project_layers_removed)
 
         # model
@@ -523,7 +533,6 @@ class LineProfile:
             (self.dock.Btn_ClearInScope.clicked, self.clear_features_in_scope),
             (self.dock.Chk_ShowFeaturePoints.stateChanged, self.refresh_feature_map_markers),
             (self.dock.Btn_ClearAllFeatures.clicked, self.clear_all_features),
-            (self.dock.Btn_CreatePointLayer.clicked, self.create_feature_point_layer),
             (QgsProject.instance().layersRemoved, self.handle_project_layers_removed),
             (self.model.itemChanged, self.myConnect),
             (self.model.rowsInserted, self.myConnect),
@@ -537,6 +546,27 @@ class LineProfile:
                 signal.disconnect(callback)
             except (RuntimeError, TypeError):
                 continue
+        for action, callback in self.point_menu_actions:
+            try:
+                action.triggered.disconnect(callback)
+            except (RuntimeError, TypeError):
+                continue
+        self.point_menu_actions = []
+
+    def setup_points_menu(self):
+        """Attach a compact, per-dock Points menu without retaining old signals."""
+        menu = QMenu(self.dock)
+        for label, callback in (
+            ("Import Points...", self.import_feature_points),
+            ("Export Current Points...", self.export_current_feature_points),
+            ("Export All Points...", self.export_all_feature_points),
+            ("Create Point Layer", self.create_feature_point_layer),
+        ):
+            action = QAction(label, menu)
+            action.triggered.connect(callback)
+            menu.addAction(action)
+            self.point_menu_actions.append((action, callback))
+        self.dock.Btn_PointsMenu.setMenu(menu)
 
     def switch_plot_logo(self, show_plot):
         if show_plot:
@@ -1834,6 +1864,87 @@ class LineProfile:
             "Peak / Valley Detection",
             "Created point layer with {} features.".format(len(features)),
         )
+
+    def export_feature_points(self, records, title):
+        if not records:
+            QMessageBox.information(self.iface.mainWindow(), "Peak / Valley Points", "There are no points to export.")
+            return
+        file_name, _ = QFileDialog.getSaveFileName(
+            self.iface.mainWindow(),
+            title,
+            "peak_valley_points.csv",
+            "CSV files (*.csv);;TSV files (*.tsv);;Text files (*.txt)",
+        )
+        if not file_name:
+            return
+        try:
+            count = export_feature_point_file(file_name, records)
+        except OSError as error:
+            QMessageBox.warning(self.iface.mainWindow(), "Peak / Valley Points", str(error))
+            return
+        QMessageBox.information(
+            self.iface.mainWindow(), "Peak / Valley Points", "Exported {} point(s).".format(count)
+        )
+
+    def export_current_feature_points(self):
+        self.export_feature_points(self.current_feature_records(), "Export Current Peak / Valley Points")
+
+    def export_all_feature_points(self):
+        self.export_feature_points(self.featurePointStore.all_records(), "Export All Peak / Valley Points")
+
+    def import_feature_points(self):
+        context = self.current_peak_context(show_message=True)
+        if context is None:
+            return
+        file_name, _ = QFileDialog.getOpenFileName(
+            self.iface.mainWindow(),
+            "Import Peak / Valley Points",
+            "",
+            "Point files (*.csv *.tsv *.txt);;CSV files (*.csv);;TSV files (*.tsv);;Text files (*.txt)",
+        )
+        if not file_name:
+            return
+        try:
+            headers, rows = read_delimited_rows(file_name)
+        except (OSError, UnicodeError, ValueError, csv.Error) as error:
+            QMessageBox.warning(self.iface.mainWindow(), "Peak / Valley Points", str(error))
+            return
+        if "distance_um" not in headers:
+            QMessageBox.warning(
+                self.iface.mainWindow(), "Peak / Valley Points", "The file must include a distance_um column."
+            )
+            return
+        default_type = None
+        if "type" not in headers:
+            selected, accepted = QInputDialog.getItem(
+                self.iface.mainWindow(),
+                "Import Peak / Valley Points",
+                "Default type for imported rows:",
+                ("Peak", "Valley"),
+                0,
+                False,
+            )
+            if not accepted:
+                return
+            default_type = selected.lower()
+        entries, skipped = parse_import_rows(rows, default_type)
+        records, mapping_skipped = map_imported_points(
+            entries,
+            context["x"],
+            context["y"],
+            context["centers"],
+            context["profile_index"],
+            context["raster_layer_id"],
+            context["data_label"],
+        )
+        for record in records:
+            self.featurePointStore.add_imported(record)
+        skipped = sorted(set(skipped + mapping_skipped))
+        self.updatePlot()
+        message = "Processed {} valid row(s).".format(len(records))
+        if skipped:
+            message += " Skipped row(s): {}.".format(", ".join(str(number) for number in skipped))
+        QMessageBox.information(self.iface.mainWindow(), "Peak / Valley Points", message)
 
     def import_alignment_file(self):
         default_path = "~"

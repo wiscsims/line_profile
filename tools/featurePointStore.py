@@ -42,6 +42,24 @@ class FeaturePointStore:
         key_records.sort(key=lambda item: (item["sample_index"], item["kind"]))
         return record
 
+    def add_imported(self, record):
+        """Add an imported record without duplicating its current sample/type."""
+        record = dict(record)
+        record["source"] = "imported"
+        record.setdefault("id", uuid.uuid4().hex)
+        key = self._key(record["profile_index"], record["raster_layer_id"])
+        key_records = self.records.setdefault(key, [])
+        sample_index = record["sample_index"]
+
+        same = [item for item in key_records if item["sample_index"] == sample_index]
+        if len(same) == 1 and same[0]["kind"] == record["kind"]:
+            return same[0]
+
+        key_records[:] = [item for item in key_records if item["sample_index"] != sample_index]
+        key_records.append(record)
+        key_records.sort(key=lambda item: (item["sample_index"], item["kind"]))
+        return record
+
     def replace_auto(self, profile_index, raster_layer_id, records):
         key = self._key(profile_index, raster_layer_id)
         curated = [item for item in self.records.get(key, []) if item["source"] != "auto"]
