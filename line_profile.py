@@ -290,70 +290,186 @@ class LineProfile:
         self.line_profile_action.setCheckable(True)
 
     # --------------------------------------------------------------------------
+    @staticmethod
+    def _safe_disconnect(signal, callback):
+        try:
+            signal.disconnect(callback)
+        except (AttributeError, RuntimeError, TypeError):
+            pass
+
+    def stop_plugin_timers(self):
+        """Prevent callbacks owned by this instance from running after close."""
+        for name in (
+            "timer_pixel_size_spin_box",
+            "timer_resize_widget",
+            "timer_map_extent",
+        ):
+            timer = getattr(self, name, None)
+            if timer is not None:
+                try:
+                    timer.stop()
+                except RuntimeError:
+                    pass
+
+    def disconnect_map_tool(self, restore_previous=True):
+        """Detach this instance's map tool without disturbing a newer tool."""
+        self._safe_disconnect(self.canvas.mapToolSet, self.mapToolChanged)
+        try:
+            current_tool = self.canvas.mapTool()
+        except RuntimeError:
+            return
+        if current_tool is not self.profileLineTool:
+            return
+
+        previous_tool = getattr(self, "prev_tool", None)
+        if previous_tool is self.profileLineTool:
+            previous_tool = None
+        if previous_tool is None:
+            previous_tool = getattr(self, "originalMapTool", None)
+        if previous_tool is self.profileLineTool:
+            previous_tool = None
+
+        if restore_previous and previous_tool is not None:
+            try:
+                self.canvas.setMapTool(previous_tool)
+                return
+            except RuntimeError:
+                pass
+        try:
+            self.canvas.unsetMapTool(self.profileLineTool)
+        except RuntimeError:
+            pass
+
+    def cleanup_canvas_items(self, destroy=False):
+        """Hide reusable graphics or permanently remove all canvas objects."""
+        try:
+            if destroy:
+                self.profileLineTool.remove_all_canvas_items()
+            else:
+                self.profileLineTool.hide_profile_line()
+        except (AttributeError, RuntimeError) as error:
+            self.log_message("Profile graphics cleanup failed: {}".format(error))
+
+    def cleanup_plot_widget(self):
+        try:
+            self.plotTool.releasePlotWidget()
+        except (AttributeError, RuntimeError):
+            pass
+
+    def remove_dock(self):
+        """Remove and destroy the dock owned by the QGIS main window."""
+        dock = getattr(self, "dock", None)
+        if dock is None:
+            return
+
+        self.dock = None
+        self.dockOpened = False
+        try:
+            self._safe_disconnect(dock.closingPlugin, self.onClosePlugin)
+        except RuntimeError:
+            pass
+        try:
+            dock.disconnectTable()
+        except (AttributeError, RuntimeError, TypeError):
+            pass
+        try:
+            self.iface.removeDockWidget(dock)
+        except (AttributeError, RuntimeError, TypeError):
+            pass
+        try:
+            dock.setParent(None)
+        except RuntimeError:
+            pass
+        try:
+            dock.close()
+        except RuntimeError:
+            pass
+        try:
+            dock.deleteLater()
+        except RuntimeError:
+            pass
+
+    def remove_actions(self):
+        """Remove every action from the same menu and toolbar used at setup."""
+        for action in list(self.actions):
+            try:
+                self.iface.removePluginMenu(self.menu, action)
+            except (AttributeError, RuntimeError, TypeError):
+                pass
+            try:
+                self.iface.removeToolBarIcon(action)
+            except (AttributeError, RuntimeError, TypeError):
+                pass
+            try:
+                action.setEnabled(False)
+                action.triggered.disconnect()
+                action.setParent(None)
+            except (AttributeError, RuntimeError, TypeError):
+                pass
+            try:
+                action.deleteLater()
+            except (AttributeError, RuntimeError):
+                pass
+        self.actions = []
+        self.line_profile_action = None
+
+    def remove_toolbar(self):
+        """Remove the QMainWindow-owned toolbar widget, not only its reference."""
+        toolbar = getattr(self, "toolbar", None)
+        if toolbar is None:
+            return
+        self.toolbar = None
+        try:
+            toolbar.clear()
+        except RuntimeError:
+            pass
+        try:
+            self.iface.mainWindow().removeToolBar(toolbar)
+        except (AttributeError, RuntimeError, TypeError):
+            pass
+        try:
+            toolbar.setParent(None)
+        except RuntimeError:
+            pass
+        try:
+            toolbar.deleteLater()
+        except RuntimeError:
+            pass
+
     def onClosePlugin(self):
         """Cleanup necessary items here when plugin dockwidget is closed"""
-
-        # disconnects
-        # self.dockwidget.closingPlugin.disconnect(self.onClosePlugin)
-        self.dock.closingPlugin.disconnect(self.onClosePlugin)
-        self.line_profile_action.setChecked(False)
-
-        # remove this statement if dockwidget is to remain
-        # for reuse if plugin is reopened
-        # Commented next statement since it causes QGIS crashe
-        # when closing the docked window:
-        # self.dockwidget = None
-
-        try:
-            # disconnecting shold be done first
-            # otherwise, mapToolChanged event happens again
-            self.canvas.mapToolSet.disconnect(self.mapToolChanged)
-            self.canvas.unsetMapTool(self.profileLineTool)
-
-            """deactivate plugin"""
-
-            # hide profile line rubberbands
-            self.profileLineTool.hide_profile_line()
-            # self.profileLineTool.hideProfileLine()
-
-            # deactivate plugin button
-            self.line_profile_action.setChecked(False)
-
-            # deactivate dock widget
-            # self.dock.setEnabled(False)
-            #
-            # self.dock = None
-
-            # set plugin state to deactivated
-            self.pluginIsActive = False
-        except (RuntimeError, TypeError) as error:
-            self.log_message("Plugin cleanup failed: {}".format(error))
-
+        dock = getattr(self, "dock", None)
+        self.pluginIsActive = False
+        self.stop_plugin_timers()
         self.disconnectTools()
-        self.disconnectDock()
+        if dock is not None:
+            self.disconnectDock()
+            self._safe_disconnect(dock.closingPlugin, self.onClosePlugin)
+        self.disconnect_map_tool(restore_previous=True)
+        self.cleanup_canvas_items(destroy=False)
+        self.cleanup_plot_widget()
+        action = getattr(self, "line_profile_action", None)
+        if action is not None:
+            try:
+                action.setChecked(False)
+            except RuntimeError:
+                pass
         self.dock = None
+        self.dockOpened = False
 
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
-
         self.pluginIsActive = False
+        self.stop_plugin_timers()
+        self.disconnectTools()
         if getattr(self, "dock", None) is not None:
             self.disconnectDock()
-
-        # clear objects on the canvas
-        # rubberbands
-        try:
-            # self.profileLineTool.resetProfileLine(all=True)
-            self.profileLineTool.reset_all_profile()
-        except AttributeError as error:
-            self.log_message("Profile graphics cleanup failed: {}".format(error))
-
-        for action in self.actions:
-            self.iface.removePluginMenu(self.tr("&LineProfile"), action)
-            self.iface.removeToolBarIcon(action)
-
-        # remove the toolbar
-        del self.toolbar
+        self.disconnect_map_tool(restore_previous=True)
+        self.cleanup_canvas_items(destroy=True)
+        self.cleanup_plot_widget()
+        self.remove_dock()
+        self.remove_actions()
+        self.remove_toolbar()
 
     # --------------------------------------------------------------------------
 
@@ -407,31 +523,19 @@ class LineProfile:
         # changed to LineProfileTool
         old_maptool
         if re.search(r"LineProfileTool", str(current_maptool)):
-            self.dock.setEnabled(True)
+            if getattr(self, "dock", None) is not None:
+                self.dock.setEnabled(True)
             return
 
         # changed to other tools
         try:
-            # disconnecting shold be done first
-            # otherwise, mapToolChanged event happens again
-            self.canvas.mapToolSet.disconnect(self.mapToolChanged)
-            self.canvas.unsetMapTool(self.profileLineTool)
-
-            """deactivate plugin"""
-
-            # hide profile line rubberbands
-            self.profileLineTool.hide_profile_line()
-            # self.profileLineTool.hideProfileLine()
-
-            # deactivate plugin button
+            self.disconnect_map_tool(restore_previous=False)
+            self.cleanup_canvas_items(destroy=False)
             self.line_profile_action.setChecked(False)
-
-            # deactivate dock widget
-            self.dock.setEnabled(False)
-
-            # set plugin state to deactivated
+            if getattr(self, "dock", None) is not None:
+                self.dock.setEnabled(False)
             self.pluginIsActive = False
-        except (RuntimeError, TypeError) as error:
+        except (RuntimeError, TypeError, AttributeError) as error:
             self.log_message("Map tool cleanup failed: {}".format(error))
 
     def connectTools(self):
@@ -523,16 +627,28 @@ class LineProfile:
         self.update_feature_count()
 
     def disconnectDock(self):
+        if getattr(self, "dock", None) is None:
+            self.stop_plugin_timers()
+            return
         connections = (
+            (self.dock.showConfig, self.showConfigDialog),
+            (self.dock.resized, self.windowResizeEvent),
             (self.dock.myExportProfileLineBtn.clicked, self.openExportProfileLineDialog),
             (self.dock.Btn_ImportProfileLine.clicked, self.openImportProfileLineDialog),
             (self.dock.Btn_ExportPlot.clicked, self.exportPlot),
             (self.dock.ChkBox_TieLine.stateChanged, self.updatePlot),
+            (self.dock.ChkBox_Tracer.stateChanged, self.handle_toggle_tracking_marker),
             (self.dock.Chk_SyncMapExtent.stateChanged, self.handle_map_extent_sync_changed),
             (self.dock.ChkBox_ShowSamplingPoints.stateChanged, self.handle_sampling_point_display),
             (self.dock.ChkBox_ShowSamplingAreas.stateChanged, self.handle_sampling_area_display),
             (self.dock.Btn_ExportProfileData.clicked, self.exportProfileData),
             (self.dock.CmbBox_ProfileLine.currentIndexChanged, self.changeCurrentProfileLine),
+            (self.dock.Btn_ResetProfileLine.clicked, self.clear_profile_line),
+            (self.dock.Spn_PixelSize.valueChanged, self.update_pixel_size),
+            (self.dock.Grp_Normalized.clicked, self.updatePlot),
+            (self.dock.Rdo_By_Total_Length.clicked, self.updatePlot),
+            (self.dock.Rdo_By_Segment.clicked, self.updatePlot),
+            (self.dock.Btn_OpenAlignmentFile.clicked, self.import_alignment_file),
             (self.dock.Cmb_PeakDataSource.currentIndexChanged, self.handle_peak_context_changed),
             (self.dock.Cmb_ProminenceMode.currentIndexChanged, self.handle_prominence_mode_changed),
             (self.dock.Cmb_DetectionScope.currentIndexChanged, self.handle_detection_scope_changed),
@@ -547,10 +663,12 @@ class LineProfile:
             (self.model.itemChanged, self.myConnect),
             (self.model.rowsInserted, self.myConnect),
             (self.model.rowsRemoved, self.myConnect),
+            (self.timer_pixel_size_spin_box.timeout, self.updatePlot),
+            (self.timer_resize_widget.timeout, self.updatePlot),
             (self.timer_map_extent.timeout, self.redraw_plot_for_map_extent),
             (self.canvas.extentsChanged, self.handle_map_extent_changed),
         )
-        self.timer_map_extent.stop()
+        self.stop_plugin_timers()
         for signal, callback in connections:
             try:
                 signal.disconnect(callback)

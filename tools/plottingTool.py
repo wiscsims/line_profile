@@ -44,8 +44,27 @@ class PlottingTool:
     def addPlotWidget(self, plotFrame):
         layout = plotFrame.layout()
         if layout.count() == 0:
+            self.releasePlotWidget()
             layout.addWidget(self.getPlotWidget())
         self.plotWidget = layout.itemAt(0).widget()
+
+    def releasePlotWidget(self):
+        """Disconnect callbacks and forget state owned by a closing dock."""
+        if self.mcv is not None:
+            try:
+                if self.motion_cid:
+                    self.mcv.mpl_disconnect(self.motion_cid)
+                if self.click_cid:
+                    self.mcv.mpl_disconnect(self.click_cid)
+            except RuntimeError:
+                pass
+        self.motion_cid = None
+        self.click_cid = None
+        self.host = None
+        self.par = []
+        self.plotWidget = None
+        self.mcv = None
+        self.fig = None
 
     # def formatAxes(self, axe1, axe2=None, axe1_colors=u'k', axe2_colors=u'k'):
     #     # add grrid to the plot

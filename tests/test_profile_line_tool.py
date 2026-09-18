@@ -33,6 +33,7 @@ def profile(markers=None):
             "tieline": markers.get("tieline", []),
             "sampling_area": markers.get("sampling_area", []),
             "sampling_point": markers.get("sampling_point", []),
+            "feature_point": markers.get("feature_point", []),
         },
     }
 
@@ -43,6 +44,9 @@ class ProfileLineToolTest(unittest.TestCase):
         self.tool.profile_line_index = 1
         self.tool.scene = Scene()
         self.tool.terminated = True
+        self.tool.tracking_marker = None
+        self.tool.profile_line_points = [[object()]]
+        self.tool.profile_lines = [object()]
         self.tool.profile = [profile(), profile()]
 
     def test_explicit_zero_sampling_index_is_preserved(self):
@@ -79,6 +83,44 @@ class ProfileLineToolTest(unittest.TestCase):
         self.tool.reset_profile(0)
         self.assertTrue(marker.was_reset)
         self.assertIn(marker, self.tool.scene.removed)
+
+    def test_remove_all_canvas_items_removes_every_owned_graphic(self):
+        tracking = Marker()
+        first_markers = {
+            "line": Marker(),
+            "vertex": [Marker()],
+            "tieline": [Marker()],
+            "sampling_area": [Marker()],
+            "sampling_point": [Marker()],
+            "feature_point": [Marker()],
+        }
+        second_markers = {
+            "line": Marker(),
+            "vertex": [Marker()],
+            "tieline": [Marker()],
+            "sampling_area": [Marker()],
+            "sampling_point": [Marker()],
+            "feature_point": [Marker()],
+        }
+        self.tool.profile = [profile(first_markers), profile(second_markers)]
+        self.tool.tracking_marker = tracking
+
+        expected = [tracking]
+        for markers in (first_markers, second_markers):
+            expected.append(markers["line"])
+            for name in (
+                "vertex", "tieline", "sampling_area", "sampling_point", "feature_point"
+            ):
+                expected.extend(markers[name])
+
+        self.tool.remove_all_canvas_items()
+
+        self.assertCountEqual(self.tool.scene.removed, expected)
+        self.assertEqual(self.tool.profile, [])
+        self.assertEqual(self.tool.profile_line_points, [])
+        self.assertEqual(self.tool.profile_lines, [])
+        self.assertIsNone(self.tool.tracking_marker)
+        self.assertTrue(self.tool.terminated)
 
 
 if __name__ == "__main__":

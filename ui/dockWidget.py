@@ -80,9 +80,15 @@ class DockWidget(QDockWidget, FORM_CLASS):
         self.myTable.clicked.connect(self.changeCheckState)
 
     def disconnectTable(self):
-        self.Btn_Add.clicked.disconnect(self.selectElement)
-        self.myTable.doubleClicked.disconnect(self.modifyTable)
-        self.myTable.clicked.disconnect(self.changeCheckState)
+        for signal, callback in (
+            (self.Btn_Add.clicked, self.selectElement),
+            (self.myTable.doubleClicked, self.modifyTable),
+            (self.myTable.clicked, self.changeCheckState),
+        ):
+            try:
+                signal.disconnect(callback)
+            except (RuntimeError, TypeError):
+                pass
 
     def closeEvent(self, event):
         self.disconnectTable()

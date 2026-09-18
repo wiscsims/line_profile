@@ -73,6 +73,26 @@ class ProfileLineTool(QgsMapTool):
         [self.reset_profile(idx) for idx in range(len(self.profile))]
         self.reset_tracking_marker()
 
+    def remove_all_canvas_items(self):
+        """Permanently remove every QGraphicsItem owned by this map tool."""
+        self.reset_tracking_marker()
+        for profile in list(self.profile):
+            markers = profile.get("markers", {})
+            line = markers.get("line")
+            if line is not None:
+                self._remove_canvas_items([line], reset=True)
+            for name in ("vertex", "tieline", "sampling_area"):
+                self._remove_canvas_items(markers.get(name, []), reset=True)
+                markers[name] = []
+            for name in ("sampling_point", "feature_point"):
+                self._remove_canvas_items(markers.get(name, []))
+                markers[name] = []
+            profile["point"] = []
+        self.profile = []
+        self.profile_line_points = []
+        self.profile_lines = []
+        self.terminated = True
+
     def _remove_canvas_items(self, items, reset=False):
         for item in list(items):
             try:
@@ -291,8 +311,10 @@ class ProfileLineTool(QgsMapTool):
 
     def reset_tracking_marker(self):
         if self.tracking_marker:
-            # self.tracking_marker.reset()
-            self.scene.removeItem(self.tracking_marker)
+            try:
+                self.scene.removeItem(self.tracking_marker)
+            except RuntimeError:
+                pass
             self.tracking_marker = None
 
     def get_base_sampling_point_vertex_marker(self, color=None, pt=None):
